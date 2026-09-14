@@ -235,5 +235,44 @@ asked about pixels instead of prompts.
 
 ---
 
+## A vocabulary pack is invisible until you have already used it
+
+**Found 2026-09-13 while shooting the packs demo.** Mark wanted an empty page and
+Add Tiles to pull words from the bundled packs. The packs were not offered. The
+workaround was to add a whole pack *page* first, then Add Tiles could see those
+words, then delete the scaffolding page — his words: *"clutzy but it works."*
+
+`TilePickerView.swift:73` is the cause:
+
+```swift
+return availablePacks.filter { pack in pack.words.contains { keys.contains($0.key) } }
+```
+
+`keys` is `Set(allTiles.map(\.key))` — the **materialized** `TileModel` set. So a
+pack only appears once at least one of its words already exists on a board. A
+pack nobody has used yet filters itself out of the picker whose whole job is to
+let you use it. The filter is right for *user-authored* classes (do not offer a
+class with nothing in it) and exactly wrong for bundled content, which is known
+to exist whether or not it has been instantiated.
+
+**Same shape as [the art-styles bug](#a-new-word-can-only-ever-get-the-style-you-were-standing-on).**
+Both surfaces answer "what is available?" by looking at "what is already on a
+board". The scene editor cannot offer a style you are not standing in; the tile
+picker cannot offer a pack you have not already adopted. Worth fixing as one
+idea rather than two patches: *availability is a property of the catalogue, not
+of the current board.*
+
+**Shape of the fix.** Offer every pack in `availablePacks` unconditionally, and
+materialize a pack's words lazily when one is actually selected — the same
+`SceneBuilder.materializeNewWords` path `addNewWordInline` already uses. The
+"does anything exist yet" test stays where it belongs, on caregiver-authored
+word classes.
+
+Not a launch gate — every bundled pack is reachable by adding its page — but it
+is squarely in the path of the first thing a new caregiver tries, and the
+workaround requires knowing to create and then delete a page.
+
+---
+
 *Add new cross-cutting items here as stubs; promote to a dedicated note + worktree
 when scheduled.*
