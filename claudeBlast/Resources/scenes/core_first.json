@@ -63,7 +63,6 @@
             "tired",
             "hurt",
             "sick",
-            "toilet",
             "yes",
             "no",
             "i",
@@ -91,12 +90,6 @@
           "link": "eat",
           "to": "food_drinks",
           "audible": true
-        },
-        {
-          "keys": [
-            "banana",
-            "goldfish_cracker"
-          ]
         },
         {
           "link": "play",

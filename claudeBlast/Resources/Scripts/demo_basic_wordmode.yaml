@@ -1,7 +1,7 @@
 name: Basic AAC Demo
-description: sentence mode asking for a drink
+description: word mode asking for a drink
 scene: "<default>"   # activate the built-in default scene first, so this demo works regardless of active scene
-mode: sentence
+mode: word
 audio: on
 tileWait: .human
 sentenceWait: .human
@@ -10,9 +10,7 @@ script:
   - comment: Basic AAC interaction flow
   - wait: 1s
   - tiles:
-    - <home>, dad, hungry, <food>, popsicle
+    - <home>, dad, hungry, <food>, popsicle +
 
   - wait: 2s
-  - comment: Demo complete
-    
   - comment: Demo complete

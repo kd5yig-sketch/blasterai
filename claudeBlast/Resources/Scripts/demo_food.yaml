@@ -1,7 +1,7 @@
-name: Classic Tiles Showcase
-description: Classic tile showcase
+name: Tiles Showcase
+description: tile showcase
 scene: "<default>"
-mode: sentence
+mode: word
 
 audio: on
 tileWait: .human
@@ -9,21 +9,22 @@ sentenceWait: .human
 
 script:
   - wait: 1s
-  - tileSet: classic
+  - tileSet: classic_light
   - tiles:
-    - <home>, mom, <food>, popsicle, cookie
-  
+    - <home>, mom, <food>, popsicle, cookie, <home> +
+  - wait: 2s
+  - screenshot: 01-classic_light
+  - tileSet: classic_medium
+  - wait: 2s
+  - screenshot: 02-classic_medium
+  - tileSet: classic_dark
+  - wait: 2s
+  - screenshot: 03-classic_dark
+  - tileSet: hc
+  - wait: 2s
+  - screenshot: 04-high_contrast
   - tileSet: playful
   - wait: 2s
-  - tileSet: classic
+  - screenshot: 05-playful
 
-  - tiles:
-    - <home>, dad, <social>, bored
-  
-  - tileSet: playful
-  - wait: 2s
-  - tileSet: classic
-  - wait: 2s
-
-      
   - comment: Your tile set is restored when the demo ends

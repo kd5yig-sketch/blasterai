@@ -540,11 +540,13 @@ struct TileScriptView: View {
 
     private var curatedScripts: [ScriptInfo] {
         var scripts = [
-            ScriptInfo(name: "First Look", description: "Child, Grandpa, Mom, and a Playground", resourceName: "demo_basic"),
-            ScriptInfo(name: "Single Word Mode", description: "Single Word Mode -- Visit to the Tidepool", resourceName: "demo_wordmode"),
-            ScriptInfo(name: "Classic Tiles Showcase", description: "order food, then flip the whole board to the Classic tile set", resourceName: "demo_food"),
-            ScriptInfo(name: "At Home — Chocolate", description: "\"Mom, I want chocolate\" — repetition escalates the want (iPad)", resourceName: "demo_home"),
-            ScriptInfo(name: "On the Go — Bathroom", description: "\"Mom, I have a stomachache. Can I go to the bathroom?\" (iPhone)", resourceName: "demo_onthego"),
+            ScriptInfo(name: "First Look - sentence mode", description: "Sentence mode asking for a drink", resourceName: "demo_basic"),
+            ScriptInfo(name: "First Look - word mode", description: "Word mode asking for a drink", resourceName: "demo_basic_wordmode"),
+            ScriptInfo(name: "Escalation - sentence", description: "demonstrate escalation mode", resourceName: "demo_escalation"),
+            ScriptInfo(name: "Vocabulary Packs - word mode", description: "Vocabulary packs in Single Word Mode", resourceName: "demo_wordmode"),
+            ScriptInfo(name: "Classic Tiles Showcase", description: "iterate thru all tile sets taking screenshots", resourceName: "demo_food"),
+            ScriptInfo(name: "At Home — Playing ", description: "Simple introduction of tiles -> Sentences", resourceName: "demo_home"),
+            ScriptInfo(name: "On the Go — Bathroom", description: "Grandma, Stomach Ache, Bathroom", resourceName: "demo_onthego"),
         ]
         #if DEBUG
         // Screenshot runs: drive the app to each state worth photographing and

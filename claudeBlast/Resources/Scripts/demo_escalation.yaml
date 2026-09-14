@@ -1,0 +1,23 @@
+name: Basic AAC Demo with escalation
+description: escalation demo, child who wants chocolate
+scene: "<default>"   # activate the built-in default scene first, so this demo works regardless of active scene
+mode: sentence
+audio: on
+tileWait: .human
+sentenceWait: .human
+
+script:
+  - comment: Basic AAC interaction flow
+  - wait: 1s
+  - tiles:
+    - <home>, grandpa, <food>, chocolate, +
+  - wait: 2s
+  - tiles:
+    - chocolate, +
+  - wait: 2s
+  - tiles:
+    - chocolate, +
+  - wait: 2s
+  - tiles:
+    - chocolate, +
+  - wait: 2s

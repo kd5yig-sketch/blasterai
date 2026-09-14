@@ -8,8 +8,8 @@ sentenceWait: .human
 
 script:
   - comment: On the phone, out and about — a real need
+  - wait: 1s
   - tiles:
-    - <home>, mom, <body_health>, stomachache, +
-    - <home>, <social>, bathroom
-    - <tilescript:replay>
+    - <home>, grandma, <body_health>, stomachache, <social>, bathroom
+  - wait: 2s
   - comment: Demo complete
