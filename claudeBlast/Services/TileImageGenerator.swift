@@ -355,13 +355,21 @@ enum TileImageGenerator {
         color, you MUST change it to dark brown. Pale hair on brown skin is wrong \
         and is the most common mistake made on this task. Hair that is already \
         dark stays exactly as it is. Keep strong value contrast at the hairline so \
-        it reads clearly against the skin, and never tint hair with the skin color.
+        it reads clearly against the skin, and never tint hair with the skin \
+        color. This contrast instruction applies to HAIR ONLY.
+
+        Do NOT adjust the contrast, brightness or value of anything else to suit \
+        the new skin tone, and never invert or swap black and white anywhere in \
+        the picture. White paper stays white with black print on it. A black \
+        shirt stays black; a white shirt stays white. Elements next to skin — \
+        sleeves, collars, a held object — are the ones most often wrongly \
+        flipped; they must come through untouched.
 
         Change NOTHING else. Same person, same pose, same facial expression, same \
         hairstyle, same clothing and identical clothing colors, same objects, \
         same background, same black outlines at the same weight, same composition. \
-        Do not redraw or restyle. Do not recolor clothing, food, bread, wood, \
-        sand, or any object — only skin. No text anywhere.
+        Do not redraw or restyle. Do not recolor clothing, paper, print, food, \
+        bread, wood, sand, or any object — only skin. No text anywhere.
         """
     }
 

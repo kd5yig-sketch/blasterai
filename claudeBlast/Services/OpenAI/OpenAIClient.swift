@@ -60,7 +60,39 @@ final class UsageRecorder {
     /// that would otherwise work.
     private var context: ModelContext?
 
-    func configure(context: ModelContext) { self.context = context }
+    func configure(context: ModelContext) {
+        self.context = context
+        repairPhantomImageCounts(in: context)
+    }
+
+    /// Zero the image counts that never were.
+    ///
+    /// `/v1/models` answers a key check with `{"object":"list","data":[…every
+    /// model…]}`, and the usage parser counted any `data` array as pictures — so
+    /// each key check logged ~132 images. Ten of them put 1,320 imaginary images
+    /// in the AI Usage summary beside the 20 real ones, which is exactly the kind
+    /// of number this ledger exists to be trusted about.
+    ///
+    /// The parser is fixed, but rows already written keep the bad count for the
+    /// rest of the month they landed in. They are provably wrong — a non-image
+    /// endpoint cannot return an image — so they are repaired rather than
+    /// explained. Costs are untouched: `imageCount` never fed the price, which is
+    /// why the money was right all along while the count was not.
+    ///
+    /// Idempotent and cheap: after the first pass the predicate matches nothing.
+    /// `APIUsageEvent` is device-local, so this rewrites nothing anyone else has.
+    private func repairPhantomImageCounts(in context: ModelContext) {
+        let generations = OpenAIEndpoint.imagesGenerations
+        let edits = OpenAIEndpoint.imagesEdits
+        let descriptor = FetchDescriptor<APIUsageEvent>(
+            predicate: #Predicate { event in
+                event.imageCount > 0 && event.endpoint != generations && event.endpoint != edits
+            })
+        guard let stale = try? context.fetch(descriptor), !stale.isEmpty else { return }
+        for event in stale { event.imageCount = 0 }
+        try? context.save()
+        Self.logger.info("Cleared phantom image counts on \(stale.count, privacy: .public) usage rows")
+    }
 
     func record(_ event: APIUsageEvent) {
         guard let context else {
@@ -117,7 +149,7 @@ enum OpenAIClient {
         let cause = ctx?.cause ?? fallbackCause
         let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
 
-        let parsed = parseUsage(json: json)
+        let parsed = parseUsage(json: json, endpoint: endpoint)
         let model = parsed.model.isEmpty ? defaultModel(for: cause) : parsed.model
 
         let cost = ModelPricing.costMicros(
@@ -162,13 +194,21 @@ enum OpenAIClient {
     /// `input_tokens`/`output_tokens` — so both spellings are accepted. Image
     /// responses further split their input via `input_tokens_details.image_tokens`,
     /// which matters because image input is billed at twice the text rate.
-    private static func parseUsage(json: [String: Any]?) -> ParsedUsage {
+    private static func parseUsage(json: [String: Any]?, endpoint: String) -> ParsedUsage {
         var out = ParsedUsage()
         guard let json else { return out }
 
         out.model = json["model"] as? String ?? ""
-        // Images return an array of results; its length is the image count.
-        if let items = json["data"] as? [[String: Any]] { out.imageCount = items.count }
+        // `data` is an array on more than one endpoint and means something
+        // different on each: generated pictures on the image endpoints, and the
+        // **model catalogue** on `/v1/models`. Counting it unconditionally made
+        // every key check report ~132 images — ten of them put 1,320 imaginary
+        // images in the usage summary, next to the 20 real ones. So the endpoint
+        // decides, not the shape of the JSON.
+        if OpenAIEndpoint.producesImages(endpoint),
+           let items = json["data"] as? [[String: Any]] {
+            out.imageCount = items.count
+        }
 
         guard let usage = json["usage"] as? [String: Any] else { return out }
 
@@ -209,4 +249,9 @@ enum OpenAIEndpoint {
     static let imagesEdits = "/v1/images/edits"
     static let moderations = "/v1/moderations"
     static let models = "/v1/models"
+
+    /// Whether a response from this endpoint's `data` array is pictures.
+    static func producesImages(_ endpoint: String) -> Bool {
+        endpoint == imagesGenerations || endpoint == imagesEdits
+    }
 }

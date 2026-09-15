@@ -41,7 +41,6 @@ struct AddWordSheet: View {
     @State private var photoError: String?
     @State private var isGenerating = false
     @State private var imageDetail = ""
-    @AppStorage(AppSettingsKey.generateAllStyles) private var generateAllStyles = false
 
     private var apiKey: String { OpenAIKeyVault.currentKey() ?? "" }
 
@@ -147,10 +146,6 @@ struct AddWordSheet: View {
                     .disabled(isGenerating)
 
                     if !apiKey.isEmpty {
-                        Toggle("Generate all styles", isOn: $generateAllStyles)
-                            .font(.caption)
-                            .disabled(isGenerating)
-
                         Button {
                             Task { await generateImage() }
                         } label: {
@@ -368,7 +363,7 @@ struct AddWordSheet: View {
         isGenerating = true
         photoError = nil
         defer { isGenerating = false }
-        let plan = ArtPlan.plan(activeSet: resolver.activeSet, allStyles: generateAllStyles)
+        let plan = ArtPlan.plan(activeSet: resolver.activeSet)
         let expected = ArtPlan.expectedSets(plan)
         let images = await TileImageGenerator.generate(
             displayName: trimmedName, wordClass: wordClass,

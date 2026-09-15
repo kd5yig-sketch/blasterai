@@ -36,7 +36,6 @@ struct SceneEditorView: View {
     /// The page being shared, if any. Keyed rather than held by value so the
     /// sheet always reads the page as it currently is.
     @State private var pageToShare: PageLinkTarget? = nil
-    @AppStorage(AppSettingsKey.generateAllStyles) private var generateAllStyles = false
 
     private var tileLookup: [String: TileModel] {
         Dictionary(allTiles.map { ($0.key, $0) }, uniquingKeysWith: { first, _ in first })
@@ -101,6 +100,14 @@ struct SceneEditorView: View {
         return SceneImageBatch.tilesMissingVariants(in: scene, tileLookup: tileLookup,
                                                     style: activeStyle, resolver: imageResolver)
     }
+
+    /// Per-style art gaps across every generatable style — the thing the two
+    /// offers above cannot see. Reads `revision` so it settles as runs finish.
+    private var artCoverage: [SceneImageBatch.StyleCoverage] {
+        _ = imageResolver.revision
+        return SceneImageBatch.coverage(in: scene, tileLookup: tileLookup,
+                                        resolver: imageResolver)
+    }
     /// Identifier of a freshly-created page to navigate into. Stored as the
     /// page key string now that pages are inline structs rather than
     /// SwiftData entities.
@@ -108,6 +115,120 @@ struct SceneEditorView: View {
     @State private var pickerKeysForNewPage: Set<String> = []
     @Environment(\.horizontalSizeClass) private var hSizeClass
     @State private var isSharingScene = false
+
+    /// Art coverage, style by style — and it stays put.
+    ///
+    /// The two offers above are transient by design: they describe work to do
+    /// and vanish when it is done. That is exactly how a word ends up
+    /// unfinishable. `tilesNeedingArt` means *nothing resolves*, so it
+    /// disappears the moment Classic art exists; the old completion offer read
+    /// the active style only, and Playful 3D and High Contrast are separate
+    /// styles rather than variants of Classic. A word added on Classic fell
+    /// through both and could never be completed in bulk again.
+    ///
+    /// So this section is permanent, and quiet when everything is covered — a
+    /// single green line rather than nothing, because "no gaps" and "we stopped
+    /// asking" look identical if the section simply disappears.
+    @ViewBuilder
+    private var artCoverageSection: some View {
+        let coverage = artCoverage
+        if !coverage.isEmpty {
+            Section {
+                if coverage.allSatisfy(\.isComplete) {
+                    Label("Every word has art in all \(coverage.count) styles.",
+                          systemImage: "checkmark.circle.fill")
+                        .font(.subheadline)
+                        .foregroundStyle(.green)
+                } else {
+                    ForEach(coverage) { entry in
+                        coverageRow(entry)
+                    }
+                    // Only with more than one gap: with a single incomplete
+                    // style this would be the row above it, worded differently.
+                    let gaps = coverage.filter { !$0.isComplete }
+                    if gaps.count > 1 {
+                        Button {
+                            artController.startSweep(
+                                gaps.map { ($0.style, $0.needsBase + $0.needsVariants) },
+                                apiKey: resolvedAPIKey,
+                                context: modelContext, resolver: imageResolver)
+                            isGeneratingArt = true
+                        } label: {
+                            Label("Finish all \(gaps.count) styles",
+                                  systemImage: "square.stack.3d.up.fill")
+                        }
+                        .font(.subheadline.weight(.medium))
+                        .disabled(resolvedAPIKey.isEmpty || artController.isActive)
+                    }
+                }
+            } header: {
+                Text("Art Coverage")
+            } footer: {
+                if resolvedAPIKey.isEmpty {
+                    Text("Add an AI key in Admin to fill these in.")
+                } else {
+                    Text("A style is only complete when every word on this board has art in it. Recoloring reuses the picture you already have, so the figure stays the same; drawing a style from scratch makes a new picture.")
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func coverageRow(_ entry: SceneImageBatch.StyleCoverage) -> some View {
+        if entry.isComplete {
+            HStack {
+                Text(entry.style.displayName)
+                Spacer()
+                Label("Complete", systemImage: "checkmark.circle.fill")
+                    .labelStyle(.iconOnly)
+                    .foregroundStyle(.green)
+            }
+            .font(.subheadline)
+        } else {
+            Button {
+                artController.start(tiles: entry.needsBase + entry.needsVariants,
+                                    mode: .completeStyle(entry.style),
+                                    apiKey: resolvedAPIKey,
+                                    context: modelContext, resolver: imageResolver)
+                isGeneratingArt = true
+            } label: {
+                HStack(alignment: .firstTextBaseline) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(entry.style.displayName)
+                            .foregroundStyle(.primary)
+                        // The two jobs are named separately because they are
+                        // different work at different prices: a recolour keeps
+                        // the figure, a fresh drawing does not.
+                        Text(coverageDetail(entry))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Image(systemName: "wand.and.stars")
+                        .foregroundStyle(.tint)
+                }
+            }
+            .font(.subheadline)
+            .disabled(resolvedAPIKey.isEmpty || artController.isActive)
+        }
+    }
+
+    /// These are counts of **words**, and they say so.
+    ///
+    /// The per-tile rows in Tile Settings count the variants missing *within* a
+    /// style, so a board where one new word has Light but not Medium or Dark
+    /// shows "1 word to recolor" here and "missing Medium, Dark" there. Both are
+    /// true; rendered as bare numbers they looked like a disagreement.
+    private func coverageDetail(_ entry: SceneImageBatch.StyleCoverage) -> String {
+        var parts: [String] = []
+        if !entry.needsVariants.isEmpty {
+            parts.append("\(entry.needsVariants.count) word\(entry.needsVariants.count == 1 ? "" : "s") to recolor")
+        }
+        if !entry.needsBase.isEmpty {
+            parts.append("\(entry.needsBase.count) word\(entry.needsBase.count == 1 ? "" : "s") to draw")
+        }
+        return parts.joined(separator: " · ")
+    }
 
     var body: some View {
         List {
@@ -167,8 +288,6 @@ struct SceneEditorView: View {
                     }
                 } else {
                     Section {
-                        Toggle("Generate all styles", isOn: $generateAllStyles)
-                            .font(.subheadline)
                         Button {
                             artController.start(tiles: tilesNeedingArt, apiKey: resolvedAPIKey,
                                                 context: modelContext, resolver: imageResolver)
@@ -180,33 +299,12 @@ struct SceneEditorView: View {
                     } header: {
                         Text("New-Word Art")
                     } footer: {
-                        Text(generateAllStyles
-                             ? "These words were added by AI and don't have pictures yet. Art is generated for every tile style."
-                             : "These words were added by AI and don't have pictures yet.")
+                        Text("These words don't have pictures yet. They are drawn in the style you're using now; Art Coverage below is where you fill in the others, once you can see how much each one is.")
                     }
-                }
-            } else if let style = activeStyle, !tilesMissingVariants.isEmpty,
-                      !resolvedAPIKey.isEmpty {
-                // Only once the new-word work is done: a word with no art at all
-                // has nothing to transform, so offering both at once would ask
-                // the caregiver to run them in an order nothing explains.
-                Section {
-                    Button {
-                        artController.start(tiles: tilesMissingVariants,
-                                            mode: .fillVariants(style),
-                                            apiKey: resolvedAPIKey,
-                                            context: modelContext, resolver: imageResolver)
-                        isGeneratingArt = true
-                    } label: {
-                        Label("Complete \(style.displayName) for \(tilesMissingVariants.count) word\(tilesMissingVariants.count == 1 ? "" : "s")",
-                              systemImage: "square.on.square.badge.person.crop")
-                    }
-                } header: {
-                    Text("Complete \(style.displayName)")
-                } footer: {
-                    Text("These words have art in some \(style.displayName) styles but not all of them. Completing recolors the pictures you already have — it doesn't draw new ones, so the figures stay the same.")
                 }
             }
+
+            artCoverageSection
 
             Section("Scene Info") {
                 LabeledContent("Name") {

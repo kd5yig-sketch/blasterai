@@ -34,7 +34,13 @@ struct TilePhotoSection: View {
     @State private var isLoading = false
     @State private var isGenerating = false
     @State private var imageDetail = ""
-    @AppStorage(AppSettingsKey.generateAllStyles) private var generateAllStyles = false
+    /// The AI controls start folded away. The Photo section's job is the photo,
+    /// and a caregiver reaching for it usually wants the camera roll — three
+    /// buttons, a toggle and a text field stacked above that made the common
+    /// action the hardest one to find.
+    @State private var showArtOptions = false
+    /// The style currently being filled, so its row can show a spinner.
+    @State private var fillingStyle: String? = nil
 
     private var apiKey: String { OpenAIKeyVault.currentKey() ?? "" }
 
@@ -67,58 +73,59 @@ struct TilePhotoSection: View {
             .disabled(isLoading || isGenerating)
 
             if !apiKey.isEmpty {
-                Toggle("Generate all styles", isOn: $generateAllStyles)
-                    .font(.caption)
+                DisclosureGroup("Artwork", isExpanded: $showArtOptions) {
+                    styleCoverage
+
+                    Button {
+                        Task { await generateImage() }
+                    } label: {
+                        Label(hasActiveArt ? "Regenerate (fresh image)" : "Generate with AI",
+                              systemImage: "wand.and.stars")
+                    }
                     .disabled(isLoading || isGenerating)
 
-                Button {
-                    Task { await generateImage() }
-                } label: {
-                    Label(hasActiveArt ? "Regenerate (fresh image)" : "Generate with AI",
-                          systemImage: "wand.and.stars")
-                }
-                .disabled(isLoading || isGenerating)
-
-                if canRefine {
-                    Button {
-                        Task { await refineImage() }
-                    } label: {
-                        Label("Refine this image", systemImage: "wand.and.rays")
+                    if canRefine {
+                        Button {
+                            Task { await refineImage() }
+                        } label: {
+                            Label("Refine this image", systemImage: "wand.and.rays")
+                        }
+                        .disabled(isLoading || isGenerating || imageDetail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     }
-                    .disabled(isLoading || isGenerating || imageDetail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                }
 
-                HStack(spacing: 6) {
-                    TextField(canRefine ? "Describe a change, e.g. give her red hair" : "Add a detail to guide the image (optional)",
-                              text: $imageDetail, axis: .vertical)
-                        .font(.caption)
-                        .lineLimit(1...2)
-                        .disabled(isLoading || isGenerating)
-                        .onChange(of: imageDetail) { _, value in
-                            if value.count > TileImageGenerator.maxDetailLength {
-                                imageDetail = String(value.prefix(TileImageGenerator.maxDetailLength))
+                    HStack(spacing: 6) {
+                        TextField(canRefine ? "Describe a change, e.g. give her red hair" : "Add a detail to guide the image (optional)",
+                                  text: $imageDetail, axis: .vertical)
+                            .font(.caption)
+                            .lineLimit(1...2)
+                            .disabled(isLoading || isGenerating)
+                            .onChange(of: imageDetail) { _, value in
+                                if value.count > TileImageGenerator.maxDetailLength {
+                                    imageDetail = String(value.prefix(TileImageGenerator.maxDetailLength))
+                                }
                             }
+                        if !imageDetail.isEmpty {
+                            Button { imageDetail = "" } label: {
+                                Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
+                            }
+                            .buttonStyle(.plain)
+                            .disabled(isLoading || isGenerating)
+                            .accessibilityLabel("Clear text")
                         }
-                    if !imageDetail.isEmpty {
-                        Button { imageDetail = "" } label: {
-                            Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
-                        }
-                        .buttonStyle(.plain)
-                        .disabled(isLoading || isGenerating)
-                        .accessibilityLabel("Clear text")
+                    }
+                    if canRefine {
+                        Text("Refine keeps this picture and applies your change (active style only). Regenerate makes a brand-new image.")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                    if imageDetail.count >= TileImageGenerator.detailCounterThreshold {
+                        Text("\(imageDetail.count)/\(TileImageGenerator.maxDetailLength)")
+                            .font(.caption2)
+                            .foregroundStyle(imageDetail.count >= TileImageGenerator.maxDetailLength ? .red : .secondary)
+                            .frame(maxWidth: .infinity, alignment: .trailing)
                     }
                 }
-                if canRefine {
-                    Text("Refine keeps this picture and applies your change (active style only). Regenerate makes a brand-new image.")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
-                if imageDetail.count >= TileImageGenerator.detailCounterThreshold {
-                    Text("\(imageDetail.count)/\(TileImageGenerator.maxDetailLength)")
-                        .font(.caption2)
-                        .foregroundStyle(imageDetail.count >= TileImageGenerator.maxDetailLength ? .red : .secondary)
-                        .frame(maxWidth: .infinity, alignment: .trailing)
-                }
+                .font(.subheadline)
             }
 
             if isLoading || isGenerating {
@@ -142,6 +149,97 @@ struct TilePhotoSection: View {
         .onChange(of: pickerItem) { _, newItem in
             guard let newItem else { return }
             Task { await loadPhoto(newItem) }
+        }
+    }
+
+    /// This word's art, style by style, with a one-tap fill for each gap.
+    ///
+    /// The per-tile mirror of the scene editor's Art Coverage, and it exists for
+    /// the same reason: Regenerate draws the word *afresh*, so with "Generate all
+    /// styles" on it replaces the picture the caregiver picked and kept. There
+    /// was no way to say "leave what I have and fill the rest" for one word.
+    ///
+    /// Filling runs through `TileArtCompletion`, the same code the scene-level
+    /// batch uses, so the two surfaces cannot mean different things by it.
+    @ViewBuilder
+    private var styleCoverage: some View {
+        let _ = resolver.revision       // re-render as art lands
+        let gaps = TileArtCompletion.incompleteStyles(for: tile, resolver: resolver)
+        if gaps.isEmpty {
+            Label("Art in every style", systemImage: "checkmark.circle.fill")
+                .font(.caption)
+                .foregroundStyle(.green)
+        } else {
+            ForEach(gaps, id: \.style.id) { work in
+                Button {
+                    Task { await fill(work) }
+                } label: {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(work.style.displayName)
+                                .foregroundStyle(.primary)
+                            // Named apart because they are different work: a
+                            // recolour keeps this figure, a drawing makes a new one.
+                            // Named, not counted: "missing 2 of 3" sat next to
+                            // the scene editor's "1 word to recolor" for the same
+                            // style and read as a contradiction. The scene counts
+                            // words; this counts tones within one style, and
+                            // saying which ones removes the question.
+                            Text(work.needsDrawing
+                                 ? "not drawn in this style yet"
+                                 : "missing \(work.missing.map(\.shortName).joined(separator: ", "))")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        if fillingStyle == work.style.id {
+                            ProgressView().controlSize(.small)
+                        } else {
+                            Image(systemName: work.needsDrawing ? "wand.and.stars" : "square.on.square")
+                                .foregroundStyle(.tint)
+                        }
+                    }
+                }
+                .font(.caption)
+                .disabled(isLoading || isGenerating || fillingStyle != nil)
+            }
+            // Mirrors the scene editor's "Finish all N styles". Only shown with
+            // more than one gap: with a single one this would be the row above
+            // it, worded differently.
+            if gaps.count > 1 {
+                Button {
+                    Task { for work in gaps { await fill(work) } }
+                } label: {
+                    Label("Fill all \(gaps.count) styles",
+                          systemImage: "square.stack.3d.up.fill")
+                }
+                .font(.caption.weight(.medium))
+                .disabled(isLoading || isGenerating || fillingStyle != nil)
+            }
+        }
+    }
+
+    /// Fill one style's gap, leaving every picture this tile already has alone.
+    private func fill(_ work: TileArtCompletion.Work) async {
+        fillingStyle = work.style.id
+        errorMessage = nil
+        defer { fillingStyle = nil }
+        let images = await TileArtCompletion.generate(
+            completing: work.style, for: tile, apiKey: apiKey, resolver: resolver)
+        for (set, image) in images {
+            if let err = TilePhotoCommit.applyVariant(image, to: tile, imageSet: set,
+                                                      context: modelContext, resolver: resolver) {
+                errorMessage = err
+            }
+        }
+        if images.isEmpty {
+            errorMessage = "Couldn't generate \(work.style.displayName)."
+        } else if images.count < work.missing.count {
+            // Name what is still missing rather than reporting a bare success —
+            // a style that silently never appears reads as the app ignoring it.
+            let landed = Set(images.keys)
+            let missing = work.missing.filter { !landed.contains($0) }.map(\.shortName)
+            errorMessage = "Couldn't generate: \(missing.joined(separator: ", "))."
         }
     }
 
@@ -170,7 +268,7 @@ struct TilePhotoSection: View {
         isGenerating = true
         errorMessage = nil
         defer { isGenerating = false }
-        let plan = ArtPlan.plan(activeSet: resolver.activeSet, allStyles: generateAllStyles)
+        let plan = ArtPlan.plan(activeSet: resolver.activeSet)
         let expected = ArtPlan.expectedSets(plan)
         let images = await TileImageGenerator.generate(
             displayName: tile.displayName, wordClass: tile.wordClass,

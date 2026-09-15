@@ -102,4 +102,86 @@ enum SceneImageBatch {
         }
         return result
     }
+
+    // MARK: - Coverage across every style
+
+    /// What one style still owes a scene.
+    ///
+    /// The two lists are separated because they are different jobs at different
+    /// prices. `needsVariants` is a recolour of a picture that already exists, so
+    /// the figure stays the same and one call produces one variant.
+    /// `needsBase` has nothing to transform — the style must be *drawn* from
+    /// scratch, which is a new picture that will not match the others tile for
+    /// tile. Collapsing them into one number would let a caregiver ask for
+    /// twenty fresh drawings believing they had asked for twenty recolours.
+    struct StyleCoverage: Identifiable {
+        let style: TileStyle
+        /// Words with no art at all in this style.
+        let needsBase: [TileModel]
+        /// Words with art in some of its variants but not all.
+        let needsVariants: [TileModel]
+
+        var id: String { style.id }
+        var isComplete: Bool { needsBase.isEmpty && needsVariants.isEmpty }
+        /// Distinct words this style is missing something for.
+        var wordCount: Int { needsBase.count + needsVariants.count }
+    }
+
+    /// Per-style coverage for every style a caregiver can generate into, active
+    /// style first.
+    ///
+    /// ## Why this asks about styles the caregiver is not using
+    ///
+    /// The scene editor used to ask only about the active style, defended as "a
+    /// style they don't use isn't a gap they can see". That is right about the
+    /// common case and wrong about the one that bites: a word added on Classic
+    /// gets Classic art, resolves, and vanishes from `tilesNeedingArt` — while
+    /// Playful 3D and High Contrast, which are separate styles rather than
+    /// variants of Classic, are never asked about by any scene-level surface. The
+    /// word is then unfinishable in bulk forever, and the caregiver *can* see the
+    /// gap: Tile Settings draws a dashed slot per missing style.
+    ///
+    /// So coverage is reported for every generatable style, and the surface that
+    /// shows it stays put rather than disappearing when one style completes.
+    @MainActor
+    static func coverage(in scene: BlasterScene, tileLookup: [String: TileModel],
+                         resolver: TileImageResolver) -> [StyleCoverage] {
+        let tiles = distinctTiles(in: scene, tileLookup: tileLookup)
+        guard !tiles.isEmpty else { return [] }
+        return ImageSetCatalog.generationTargets(preferring: resolver.activeSet)
+            .map { style in
+                var needsBase: [TileModel] = []
+                var needsVariants: [TileModel] = []
+                for tile in tiles {
+                    // Counts, not pictures — see the note on `tilesMissingVariants`:
+                    // this runs from a computed property on every render, and
+                    // decoding each image to ask whether it exists got the app
+                    // killed on a full board.
+                    let have = style.variants.count {
+                        resolver.hasArt(for: tile.bundleImage, in: $0.id)
+                    }
+                    if have == 0 {
+                        needsBase.append(tile)
+                    } else if have < style.variants.count {
+                        needsVariants.append(tile)
+                    }
+                }
+                return StyleCoverage(style: style, needsBase: needsBase,
+                                     needsVariants: needsVariants)
+            }
+    }
+
+    /// Every distinct tile placed anywhere in the scene, in board order.
+    @MainActor
+    private static func distinctTiles(in scene: BlasterScene,
+                                      tileLookup: [String: TileModel]) -> [TileModel] {
+        var seen = Set<String>()
+        var result: [TileModel] = []
+        for page in scene.pages {
+            for entry in page.tiles where seen.insert(entry.key).inserted {
+                if let tile = tileLookup[entry.key] { result.append(tile) }
+            }
+        }
+        return result
+    }
 }

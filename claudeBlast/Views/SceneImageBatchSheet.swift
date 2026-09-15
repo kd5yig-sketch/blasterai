@@ -55,10 +55,21 @@ final class SceneImageBatchController {
     /// made per word, so they are one controller with two modes rather than two
     /// near-identical controllers.
     enum Mode: Equatable {
-        /// Draw art for words that have none.
+        /// Draw art for words that have none, covering whatever `ArtPlan` says
+        /// the caregiver's settings ask for.
         case newArt
         /// Transform existing art into the variants this style is missing.
         case fillVariants(TileStyle)
+        /// Finish one named style for every word in the queue, doing per word
+        /// whatever that word needs: draw a base where the style has nothing,
+        /// transform where it has some.
+        ///
+        /// A style with no art at all could not be recovered before. `newArt`
+        /// reads the active set and the "all styles" default out of
+        /// `UserDefaults`, so it cannot be aimed; `fillVariants` has nothing to
+        /// transform. Between them a word added on Classic could never get
+        /// Playful 3D in bulk, which is the defect this mode exists for.
+        case completeStyle(TileStyle)
     }
 
     private(set) var mode: Mode = .newArt
@@ -66,12 +77,20 @@ final class SceneImageBatchController {
     /// What to make per word — see `ArtPlan`, which owns the whole decision so
     /// this sheet and the two per-word surfaces cannot drift apart.
     private var artPlan: [PlannedStyle] {
-        ArtPlan.plan(activeSet: resolver?.activeSet ?? ImageSetID.defaultSet,
-                     allStyles: UserDefaults.standard.bool(forKey: AppSettingsKey.generateAllStyles))
+        ArtPlan.plan(activeSet: resolver?.activeSet ?? ImageSetID.defaultSet)
     }
 
     private var queue: [TileModel] = []
     private var task: Task<Void, Never>?
+    /// Styles queued behind the one running, each with its own words.
+    ///
+    /// The controller is deliberately one run at a time — pause, resume and
+    /// background survival all assume a single queue, and two concurrent runs
+    /// would double the API concurrency for no benefit. But finishing Classic
+    /// and then wanting Playful 3D *and* High Contrast meant coming back to tap
+    /// a second row, which is the only thing that was actually annoying. So a
+    /// sweep chains them: still one queue, drained style by style.
+    private var pendingJobs: [(style: TileStyle, tiles: [TileModel])] = []
     private var pauseRequested = false
     /// True when generation was paused by the app going to the background, so we
     /// know to resume it (and only it) when the app returns to the foreground.
@@ -86,15 +105,32 @@ final class SceneImageBatchController {
 
     var isActive: Bool { phase == .running || phase == .paused }
 
+    /// Finish several styles in one run, one after another.
+    ///
+    /// `total` counts every word across every style, so the progress figure is
+    /// the whole job rather than resetting at each style boundary.
+    func startSweep(_ jobs: [(style: TileStyle, tiles: [TileModel])], apiKey: String,
+                    context: ModelContext, resolver: TileImageResolver) {
+        let work = jobs.filter { !$0.tiles.isEmpty }
+        guard !isActive, let first = work.first, !apiKey.isEmpty else { return }
+        pendingJobs = Array(work.dropFirst())
+        start(tiles: first.tiles, mode: .completeStyle(first.style), apiKey: apiKey,
+              context: context, resolver: resolver,
+              total: work.reduce(0) { $0 + $1.tiles.count })
+    }
+
     func start(tiles: [TileModel], mode: Mode = .newArt, apiKey: String,
-               context: ModelContext, resolver: TileImageResolver) {
+               context: ModelContext, resolver: TileImageResolver,
+               total: Int? = nil) {
         guard !isActive, !tiles.isEmpty, !apiKey.isEmpty else { return }
+        // A plain start is its own whole job; only `startSweep` sets this first.
+        if case .completeStyle = mode {} else { pendingJobs = [] }
         self.mode = mode
         self.apiKey = apiKey
         self.context = context
         self.resolver = resolver
         queue = tiles
-        total = tiles.count
+        self.total = total ?? tiles.count
         completed = 0
         failures = []
         currentName = ""
@@ -134,6 +170,7 @@ final class SceneImageBatchController {
         task?.cancel()
         task = nil
         queue = []
+        pendingJobs = []
         phase = .idle
     }
 
@@ -141,6 +178,7 @@ final class SceneImageBatchController {
     func reset() {
         guard !isActive else { return }
         phase = .idle
+        pendingJobs = []
         completed = 0
         total = 0
         currentName = ""
@@ -203,6 +241,22 @@ final class SceneImageBatchController {
                         style: style, existing: self.existingArt(of: style, for: tile),
                         apiKey: self.apiKey)
                     failed = images.count < missing.count
+                case .completeStyle(let style):
+                    // Shared with the per-tile button in `TilePhotoSection`, so
+                    // "finish this style" cannot mean two different things
+                    // depending on which surface asked.
+                    guard let resolver = self.resolver else {
+                        // No resolver means the run was never configured; count
+                        // the word as failed rather than silently as done.
+                        self.failures.append(self.currentName)
+                        self.completed += 1
+                        continue
+                    }
+                    let work = TileArtCompletion.work(completing: style, for: tile,
+                                                      resolver: resolver)
+                    images = await TileArtCompletion.generate(
+                        completing: style, for: tile, apiKey: self.apiKey, resolver: resolver)
+                    failed = images.count < work.missing.count
                 }
                 if Task.isCancelled { return }
 
@@ -215,6 +269,14 @@ final class SceneImageBatchController {
                 }
                 if failed { self.failures.append(self.currentName) }
                 self.completed += 1
+
+                // Style finished and another is waiting: refill and keep going,
+                // rather than ending a run the caregiver would have to restart.
+                if self.queue.isEmpty, !self.pendingJobs.isEmpty {
+                    let next = self.pendingJobs.removeFirst()
+                    self.mode = .completeStyle(next.style)
+                    self.queue = next.tiles
+                }
             }
             self.task = nil
             if !Task.isCancelled { self.phase = .finished }
@@ -252,6 +314,7 @@ struct SceneImageBatchSheet: View {
         switch controller.mode {
         case .newArt: "New Word Art"
         case .fillVariants(let style): "Complete \(style.base.styleName)"
+        case .completeStyle(let style): "Finish \(style.base.styleName)"
         }
     }
 
