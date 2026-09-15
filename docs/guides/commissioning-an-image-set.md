@@ -18,11 +18,39 @@ compute and an afternoon**, most of which is waiting.
 working with Claude Code or similar. The division of labour that works: **you
 commission and you approve; the assistant does the mechanical work.** You decide
 what the set is for and which tiles are good enough for a child to rely on. You
-should not be hand-editing 493 filenames.
+should not be hand-editing hundreds of filenames.
 
-**What you get.** A folder of 493 PNGs, measured against your own style
-contract and reviewed tile by tile, that installs into the app as a selectable
-art style.
+**What you get.** A complete folder of PNGs — one per word the app ships —
+measured against your own style contract and reviewed tile by tile.
+
+### Getting it into a child's hands: read this before you start
+
+**The generation half is finished. The distribution half is not, and we are
+being straight with you about it.**
+
+Everything below works today, and it is the same pipeline that produced all
+five shipped sets. What does not exist yet is a way to *install* a set into
+BlasterAI from outside the app. The app is built to accept one — art styles
+resolve through a catalog with an explicit slot for sets we didn't ship, and
+every screen already reads through it — but there is no package format, no
+installer, and no UI. The slot is empty because nothing fills it yet.
+
+So today a finished set reaches a child by one of two routes: you build the app
+yourself from your own checkout, or you send it to us and we ship it. Neither
+scales, and the second one makes us a gatekeeper we don't want to be.
+
+**This is the part we want to get wrong in public rather than guess at in
+private.** The case we have in mind: a CVI specialist builds seven
+high-contrast variations tuned to different presentations, and wants to
+distribute them from their own site — perhaps sell them — without shipping an
+app or asking our permission. We think that should work. What we don't yet know
+is the shape: how a set is packaged, how a family installs one, what happens on
+update, what we owe a buyer if the author disappears, and where the line sits
+between "open source" and "someone's livelihood".
+
+If you are that person, **talk to us before you start**. We would rather build
+the distribution path with the first few people who actually need it than
+design it alone and hand them something that doesn't fit.
 
 ---
 
@@ -37,7 +65,7 @@ export OPENAI_API_KEY=sk-...             # a funded Platform account
 
 Every tool assumes the **repo root** as the working directory, not `tools/`.
 
-Budget roughly **$20–25** for a 493-tile set at gpt-image-1 `quality: medium`,
+Budget roughly **$20–25** for a full set at gpt-image-1 `quality: medium`,
 plus a few dollars of iteration. Wall-clock depends on sharding — see step 6.
 
 ---
@@ -51,9 +79,9 @@ A useful spec answers:
 
 - **Who is it for, specifically?** "Low vision" is not a spec. "A child who
   needs one large high-contrast shape and cannot filter background detail" is.
-- **What is the background?** One flat colour? Which one exactly? A gradient?
+- **What is the background?** One flat color? Which one exactly? A gradient?
 - **How much of the frame does the subject fill?**
-- **How much colour, and where?** Is colour carrying meaning, or decoration?
+- **How much color, and where?** Is color carrying meaning, or decoration?
 - **What must never appear?** Text, frames, secondary objects, fine detail.
 - **How will you know a tile failed?** If you cannot say, you cannot measure.
 
@@ -146,7 +174,7 @@ your set: declared background and tolerance, edge uniformity, subject size,
 contrast, component and fleck limits, centroid drift.
 
 It measures what repeats mechanically: frames and insets, background
-contamination, clutter, washed-out contrast, undersized or off-centre subjects.
+contamination, clutter, washed-out contrast, undersized or off-center subjects.
 It does **not** know whether the picture means the right word. That needs eyes,
 and the rubric is in `docs/tile-audit-p3d.md` (clarity / match / size, 1–5).
 
@@ -179,7 +207,7 @@ someone else, and it is most of this guide's evidence.
 **Two levers, and knowing which to reach for:**
 
 - **The style prompt** fixes systemic problems — everything is framed,
-  everything is too small, colour is everywhere.
+  everything is too small, color is everywhere.
 - **`HC_SUBJECT_OVERRIDES` in `generate_sets.py`** fixes a small closed class of
   keys, without disturbing the shared subjects that other sets use.
 
@@ -199,7 +227,7 @@ python3 tools/generate_sets.py --set your_set --sleep 5
 
 Generation is serial and `SLEEP_SECONDS` defaults to 15 — a DALL-E-3 Tier-1
 number (5 images/minute) that predates gpt-image-1 and was never revisited. At
-the default, 493 tiles is two hours of pure sleep. Use `--sleep` deliberately.
+the default, a full set is about two hours of pure sleep. Use `--sleep` deliberately.
 
 To go faster, shard across processes on disjoint key lists:
 
@@ -298,8 +326,8 @@ The specific failures were ours. These are not:
 
 1. **Naming the use case in a style prompt poisons it.** The model draws the
    domain, not in the style.
-2. **Subject text beats style text.** A colour named in a subject overrides a
-   global rule about colour, every time.
+2. **Subject text beats style text.** A color named in a subject overrides a
+   global rule about color, every time.
 3. **Calibrate against known-good work first.** An analyzer that flags a set you
    already shipped is measuring the wrong contract.
 4. **A probe set should be adversarial.** Hard keys, chosen to break things.
@@ -307,7 +335,7 @@ The specific failures were ours. These are not:
 6. **Prompt changes for systemic problems, per-key overrides for small closed
    classes.** Using the wrong one wastes a round.
 7. **Measurement exists to protect human attention**, not replace it. Nobody
-   should review 493 tiles that a script could have told you were broken.
+   should review hundreds of tiles that a script could have told you were broken.
 
 ## The worked example
 
@@ -318,6 +346,12 @@ guide — it is the same process with the details left in.
 
 ## If you build one
 
-Open a PR, or just tell us it exists. A set tuned for a real child, with the
-spec that produced it, is more useful to the next family than anything we would
-have guessed at from here.
+**Tell us.** Open a PR, or just say it exists. A set tuned for a real child,
+with the spec that produced it, is more useful to the next family than anything
+we would have guessed at from here.
+
+And say what you need from the distribution side, because that is the half we
+are still designing. Whether you want it shipped with the app, hosted on your
+own site, given away, or sold, tell us which — the first few real answers will
+decide what gets built, and "we merged it for you" is a stopgap rather than
+the plan.

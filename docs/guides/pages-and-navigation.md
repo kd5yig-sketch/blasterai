@@ -11,9 +11,14 @@ A page is one screen of tiles. A child moves between pages by tapping a
 **navigation tile** — a tile whose job is to open another page rather than to
 say a word.
 
-Navigation tiles look like any other tile. The `food` tile on a home page opens
-the food page; the `apple` tile on the food page says "apple". A tile can do
-both: open a page *and* speak its word.
+Navigation tiles are the same shape and size as every other tile, but they
+announce themselves: a **deep blue card** — distinct from the Fitzgerald colors
+that carry parts of speech — with a small **arrow badge** in the bottom-right
+corner of the picture. Blue is reserved for wayfinding here precisely so it
+can't be confused with a word color.
+
+The `food` tile on a home page opens the food page; the `apple` tile on the food
+page says "apple". A tile can do both: open a page *and* speak its word.
 
 One page is **home** — where the child starts, and where the Home button
 returns them.
@@ -34,10 +39,13 @@ you have a key and how much you want the AI to decide.
 | **Copy from another scene** | no | An existing page's word tiles |
 | **Skip AI — Create Empty Page** | no | Nothing. You add the tiles. |
 
-\* A vetted prompt you haven't edited is served from cache — no key, no tokens.
+\* A vetted prompt you haven't edited is served from cache — no AI call, nothing spent.
 
 Always name the page first. Page names are lowercase slugs — `feelings`,
-`body_health` — and autocapitalisation is off for that field on purpose.
+`body_health` — and you don't have to type them that way: the app lowercases
+what you type and turns spaces into underscores, so "Body Health" becomes
+`body_health`. Autocapitalisation is off for that field so the keyboard doesn't
+fight you.
 
 **One thing to know about Copy from another scene:** it copies the word tiles
 but **drops the navigation links**. A copied page won't take the child anywhere
@@ -111,6 +119,12 @@ The editor grid is what the child sees, in the same order.
 
 The app fits as many tiles as the tile size allows and pages the overflow
 automatically — there are no "next page" tiles to manage.
+
+How many actually fit depends on the device and the tile size you've chosen —
+around **60 on an 11-inch iPad** and **65 on an iPad mini** at the default
+density. **Home takes one of those slots**, since it sits in the grid as cell
+zero on every page rather than floating above it, so a "60-tile page" holds 59
+words.
 
 That means a page with sixty tiles isn't an error, it just becomes a page the
 child has to scroll. Whether that's right depends on the child, and you know

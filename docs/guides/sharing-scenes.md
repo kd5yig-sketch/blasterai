@@ -13,10 +13,13 @@ the share icon in the toolbar.
 You get a `.blasterscene` file — plain JSON — through the normal iOS share
 sheet. Messages, Mail, AirDrop, Files, anything.
 
-**What travels:** the pages, the layout, the navigation, and any words *you*
-added, with their artwork. Words that ship with the app don't travel — the
-receiving device already has them, and sending 493 tiles of art to deliver a
-twelve-tile scene would be silly.
+**What travels:** the pages, the layout, the navigation, and every word in the
+scene — including the ones that ship with the app. Nothing is missing on the
+other side.
+
+What doesn't travel is the *artwork* for words we ship, because the receiving
+device already has it. Only pictures for words you added yourself ride along,
+since those are the ones the other device has never seen.
 
 **Set your name first.** Admin → Scenes → **Author**. It's credited on
 everything you share ("by Dr. Yalcin"), and it's how a family knows which
@@ -27,14 +30,24 @@ back and relabelling.
 
 ## Receiving one
 
-Tap the file, or **Admin → Scenes → Import Scene** and pick it.
+How you open it depends on where it is.
+
+**Already saved in Files?** Just tap it — it opens straight into BlasterAI.
+
+**Arrived as an attachment in Mail or Messages?** Tapping only previews it.
+Use the **share** button on the attachment and pick **BlasterAI** from the
+share sheet. This trips people up, because the two cases look identical until
+the tap does nothing useful.
+
+**Either way**, Admin → Scenes → **Import Scene** always works: save the file
+first, then pick it from there.
 
 You get a preview before anything is created. Scene name, page count, tile
 count, who made it, and any words it would add to your vocabulary.
 
 ### When you already have that scene
 
-Scenes carry an identity, so re-importing an updated version is recognised
+Scenes carry an identity, so re-importing an updated version is recognized
 rather than duplicated. Three outcomes:
 
 - **Unchanged** — "already on your device — refreshed, not duplicated."
@@ -60,8 +73,15 @@ remember which came from you.
 
 ## Sharing across your own devices
 
-You don't need to. Turn on iCloud (Admin → Device) and scenes, profiles, and
-history sync across your own Apple devices automatically.
+You don't need to, and you don't need to switch anything on. **iCloud sync is
+on by default**, so scenes, profiles and history already follow you across your
+own Apple devices — signed into the same Apple Account, with iCloud Drive
+enabled.
+
+There is no sync switch in the app to find, which is deliberate: which store is
+authoritative is a decision that changes how the app is built at launch, not a
+preference to flip on a whim. If you need a device kept local, that is a
+conversation to have with us rather than a toggle.
 
 That's the two-device story: an iPad at home and an iPhone in a pocket, same
 child, same scenes, same corrections.
@@ -88,12 +108,15 @@ A short checklist, learned the boring way:
 
 ## The file, if you care
 
-`.blasterscene` is JSON with a version header. It's readable, diffable, and
-yours. "Scene" is the old internal name for a scene; the extension kept it so
-that scenes shared before the rename still open.
+`.blasterscene` is JSON with a version header — readable, diffable, and yours.
 
-Nothing about a scene is locked to us. That's deliberate — an AAC scene a
-family can't take with them isn't really theirs.
+That matters beyond curiosity: a scene is a file you hold, not a record in
+someone's account. You can keep it, back it up, mail it to the next therapist,
+or read it in a text editor years from now without our permission or our
+servers.
+
+If you want it somewhere other than BlasterAI, scenes also export as
+**OBF/OBZ**, the open format CoughDrop and the wider open-AAC world read.
 
 ---
 

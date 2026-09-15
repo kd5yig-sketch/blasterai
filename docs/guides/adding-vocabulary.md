@@ -33,7 +33,7 @@ earth, place, Planet Earth
 ```
 
 An optional third column is the display name, for when the label should differ
-from the key. Unknown classes still work but render in a neutral colour and get
+from the key. Unknown classes still work but render in a neutral color and get
 flagged. Tap a class chip to insert it correctly.
 
 **From a pack** — **Add Page** → **Start from a vocabulary pack** installs all
@@ -53,13 +53,21 @@ anything new. It pulls every word of that class you already have.
 Every tile has a class — actions, people, food, describe, feeling, place, and
 so on. It does two visible things and one invisible one:
 
-- Sets the tile's colour
 - Filters the tile picker
 - **Tells the AI what the word means in this context**
+- Feeds the grammar guess when nothing better is known
+
+It does **not** set the tile's color. Color comes from the word's *part of
+speech* — the Fitzgerald key — which is a separate, grammatical answer: `apple`
+is orange because it is a noun, not because it is filed under food. Class only
+reaches color as a last-resort fallback, for a word the app has never seen and
+has no grammatical entry for.
 
 That third one matters. The class goes to the model as authoritative:
-`snack bar (food)` means eating one, `snack bar (place)` means going there. A
-word filed under the wrong class produces confidently wrong sentences.
+
+`snack bar (food)` means something you can eat; `snack bar (place)` means
+somewhere you can go and visit. A word filed under the wrong class produces
+confidently wrong sentences.
 
 The same word can exist in two classes deliberately — `color` the action and
 `colors` the category page. When you add a word that already exists, the app
@@ -79,12 +87,21 @@ Three outcomes:
 |---|---|---|
 | **Allowed** | Nothing — it's added | — |
 | **Flagged** 🟡 | "sensitive — review before adding" | **Keep** or **Remove**. Your call. |
-| **Blocked** | "not appropriate for a young scene" | Left off |
+
+
+| **Blocked** 🔴 | "not appropriate for a young board" | Hidden, not deleted. **Restore** it in Manage Vocabulary if you disagree. |
 
 **When a scene or page is generated, Accept is gated on resolving the flags.**
 The banner says "N flagged — keep or remove the 🟡 tiles to continue." That's
 deliberate: a flagged word shouldn't slip onto a child's scene because someone
 tapped Accept quickly.
+
+**We are the proof-reader, not the editor.** Even a blocked word is only
+hidden: it keeps its place in your vocabulary, and **Manage Vocabulary →
+Hidden → Restore** brings it back. Nothing the moderation check decides is
+final, because the person who knows this child is you and the person who wrote
+the check is not. What it buys you is that no word reaches a child's board
+without someone having looked at it.
 
 **Flagged is not blocked, and the distinction is the point.** Anatomical terms
 — including `penis` and `vagina` — are flagged rather than blocked, because a
@@ -92,9 +109,10 @@ caregiver may legitimately need them for body-safety education. The app doesn't
 think it knows better than you; it thinks the decision deserves a beat.
 
 The check runs at **authoring** time, where you can see it, rather than
-silently at art-generation time. An earlier version worked the other way and
-was worse: a page-link called "gun show" got blocked at art generation and took
-the whole page with it, invisibly.
+silently at art-generation time. That placement matters: a word rejected while
+art is being generated fails far from the decision that caused it, and can take
+a whole page down without saying why — a page-link called "gun show" is enough
+to trigger it.
 
 ---
 
@@ -104,6 +122,19 @@ the whole page with it, invisibly.
 
 Search, filter by class, and scope to **All**, **Needs review**, **Hidden**, or
 **Added by you**. Per word: **Hide**, **Restore**, or **Keep**.
+
+**Hiding is not the same as concealing, and you want different ones on
+different days.**
+
+**Hide** acts on the *word*, everywhere. It leaves your vocabulary intact but
+takes the word out of every scene it appears in, and clears its cached
+sentences. Use it when a word shouldn't be available at all right now.
+
+**Conceal** acts on *one tile on one page* (page editor → select the tile →
+**Conceal on this page**). The tile keeps its cell — greyed and badged for you,
+simply absent for the child — so nothing around it moves. Use it when you want
+fewer choices in front of a child without disturbing a board they have already
+learned. It is the one to reach for first, because it costs the child nothing.
 
 Hiding removes the word from the scene and clears its cached sentences. **It is
 reversible** — that's why it's the default rather than deletion. A word you

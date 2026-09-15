@@ -8,7 +8,7 @@ Start with the first one; the vocabulary in it is assumed by all the others.
 | | |
 |---|---|
 | **[Scenes, pages, and packs](scenes-pages-and-packs.md)** | What the four words mean and where everything lives. Read this first. |
-| **[Make your first scene](make-your-first-scene.md)** | Three routes in, two of which need no AI key. |
+| **[Make your first scene](make-your-first-scene.md)** | Four routes in, three of which work with AI mode off. |
 | **[Pages and navigation](pages-and-navigation.md)** | Adding pages, linking them so a child can reach them, choosing home. |
 | **[Adding vocabulary](adding-vocabulary.md)** | New words, pasted lists, what word class does, and what the moderation flags mean. |
 | **[AI sentences and single words](ai-sentences-and-single-words.md)** | The two modes, what the AI does and doesn't do, and how to correct it. |
@@ -19,9 +19,9 @@ Start with the first one; the vocabulary in it is assumed by all the others.
 ## A note on what these say
 
 Where the app does something well, these guides show it. Where it doesn't, they
-say so plainly — there is no CVI support today, no teaching mode, no question
-words in the built-in vocabulary, and only a caregiver can correct a generated
-sentence.
+say so plainly — there is no teaching mode, no prosody in the spoken voice, no
+background or visual-complexity control for CVI beyond the High Contrast set,
+and only a caregiver can correct a generated sentence.
 
 That's deliberate. You're deciding whether to put this in front of a child, and
 a guide that only lists strengths is no help with that decision.

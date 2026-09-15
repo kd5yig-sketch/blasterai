@@ -10,18 +10,26 @@ the built-in styles are right.
 **Admin → Device → Tile Style.** It changes every tile everywhere,
 immediately. It's a per-device setting, not per-child or per-scene.
 
-Two styles ship:
+Five sets ship:
 
-**Playful 3D** — soft clay-sculpture renders, warm and friendly. The default,
-and the most complete.
+**Classic — Light, Medium and Dark** — flat pictograms with bold outlines and
+saturated color, in the tradition most AAC symbol sets follow. Familiar to
+anyone who has used Proloquo2Go or TouchChat. The three are the same drawings in
+three skin tones; a child recognizing themselves on their own board is not a
+cosmetic detail. Classic — Light is the default.
 
-**Classic** — flat pictograms with bold outlines and saturated colour, in the
-tradition most AAC symbol sets follow. Familiar to anyone who has used
-Proloquo2Go or TouchChat. Drawn clean-room, so there's no licensing baggage.
+**Playful 3D** — soft clay-sculpture renders, warm and friendly.
 
-Both cover the entire vocabulary. Neither is more "correct" — some children
-track photographic-ish 3D better, some track flat symbols better, and the only
-way to know is to try both with the child.
+**High Contrast** — white line art on true black, for low vision and CVI. See
+below.
+
+All five cover the entire vocabulary — every word that ships with the app. At
+launch that is **507 core vocabulary words plus the words in the bundled packs,
+drawn five times over: 2,792 pieces of tile art.** All five sets were generated
+by us, so none of them carries licensing baggage. None is more
+"correct" than another: some children track photographic-ish 3D better, some
+track flat symbols better, and the only way to know is to try them with the
+child.
 
 ---
 
@@ -57,30 +65,40 @@ can move this freely without breaking a scene's layout.
 
 ## What about high contrast, or CVI?
 
-Honestly: as of now, not yet — and it's the most common request we get.
+**High Contrast** is white line art on true black, with saturated accents kept
+only where color carries meaning. It covers the whole vocabulary rather than a
+subset — gaps in an accessibility style land on exactly the words a child uses
+most.
 
-There's a High Contrast style in development (bold white shapes on true black
-with saturated accents), and it isn't finished enough to offer. Shipping an
-incomplete accessibility style is worse than shipping none, because the gaps
-land on exactly the words a child uses most.
+Switch to it like any other style: **Admin → Device → Tile Style**.
 
-There is **no CVI-specific support** in the app today. No background control,
-no colour or complexity settings, no per-child visual profile. If that's what
-you need, it isn't here yet, and we'd rather say so.
+**Color is adjustable per child.** The Fitzgerald part-of-speech palette can be
+changed — any part of speech, or a single word whose grammar you disagree with —
+and a palette is a file you can export and send to every device in a caseload,
+so a child sees the same board at school and at home.
 
-### What we're doing instead
+**What is still missing, and it matters:** there is no background control, no
+complexity or density-of-detail setting, and no per-child visual profile that
+bundles those together. A real CVI provision would let you dial down visual
+clutter, not just invert contrast. High Contrast plus a palette is a useful
+start and it is not that, and we would rather say so than let the checkbox
+imply more than it does.
+
+### If you need a style we don't ship
 
 The more useful answer, we think, is not one more style from us.
 
 The complete pipeline for **commissioning a set** — specifying a style,
-generating art for all 493 words, measuring it against that spec, and reviewing
+
+generating art for every word that ships with the app, measuring it against
+that spec, and reviewing
 it tile by tile — is in the open-source repo and documented end to end in
 **[Commissioning an image set](commissioning-an-image-set.md)**. It costs about
 $20 of compute and an afternoon, and it needs someone comfortable with a
 terminal, not an artist.
 
 That means a set can be built for **one child's actual vision** — their
-acuity, their colour response, how much visual clutter they can filter —
+acuity, their color response, how much visual clutter they can filter —
 rather than us guessing at a compromise from the literature and shipping it to
 everybody.
 

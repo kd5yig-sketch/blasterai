@@ -274,5 +274,44 @@ workaround requires knowing to create and then delete a page.
 
 ---
 
+## CVI needs variation within a style, not one more style
+
+**Raised 2026-09-14, writing the tile-art guide.** High Contrast ships and
+covers the whole vocabulary, which is more than the guide used to claim. It is
+still not a CVI provision, and the gap is a specific shape worth naming before
+anyone builds the wrong thing.
+
+What exists is **one** high-contrast rendering. What CVI actually varies along
+is not "contrast on/off" but several independent axes, and children differ on
+each:
+
+- **Luminance polarity and level** — the Classic tones already prove the model:
+  Light / Medium / Dark are one style at three settings. High Contrast has no
+  equivalent, so a child who needs less than maximum contrast has nothing.
+- **Visual complexity** — level of detail, number of elements, background
+  clutter. This is the axis clinicians ask about most and the one we have no
+  control for at all.
+- **Colour** — partly served: `TileColorMap` is per-child and a palette is a
+  shareable file. That covers the card, not the artwork inside it.
+
+**The shape of the answer is probably a style with variants rather than a new
+style.** `TileStyle` already groups sets and `ImageSetCatalog` already carries
+variants (that is exactly what Classic Light/Medium/Dark are), so "High
+Contrast at three detail levels" is closer to existing machinery than it looks.
+The generation tooling can already render a whole set from a style prompt, so
+the per-variant work is a prompt and a review pass, not new infrastructure.
+
+**Not actionable yet, and deliberately not promised in the guide.** Mark:
+*"not actionable today but something we might end up doing."* The guide says
+plainly what is missing — no background control, no complexity setting, no
+per-child visual profile — and stops there. This note exists so that when
+someone does pick it up, the axes are already separated and the Classic tone
+ladder is recognised as the working precedent.
+
+Pilot feedback should be the trigger: if CVI comes up repeatedly from
+clinicians in the TestFlight group, this moves up.
+
+---
+
 *Add new cross-cutting items here as stubs; promote to a dedicated note + worktree
 when scheduled.*
