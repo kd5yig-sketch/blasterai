@@ -20,6 +20,10 @@ struct AdminView: View {
     // Cache hit/miss metrics from MetricEvent log
     @Query(sort: \MetricEvent.timestamp) var allMetricEvents: [MetricEvent]
 
+    /// The authoring row whose Copy button was last tapped, so it can show a
+    /// checkmark. Purely visual — a copy with no feedback reads as a dead button.
+    @State var copiedEventID: String? = nil
+
     // Finalized utterances — the activity-first Logs summary reads from here.
     @Query(sort: \LoggedUtterance.createdAt, order: .reverse) var loggedUtterances: [LoggedUtterance]
     @Query(sort: \APIUsageEvent.timestamp, order: .reverse) var apiUsageEvents: [APIUsageEvent]

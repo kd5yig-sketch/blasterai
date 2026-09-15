@@ -79,11 +79,10 @@ struct SceneGeneratorService {
     private func buildSystemPrompt(tileCount: Int) -> String {
         """
         You are an expert AAC (Augmentative and Alternative Communication) specialist adding today's \
-        ACTIVITY VOCABULARY to a child's communication board. The app already supplies the child's \
-        familiar core board — pronouns (i, you, he, she, we, they), family, hungry/thirsty, eat→food, \
-        drink→drinks, help, bathroom, feelings, yes/no/more/want, and the full people, food, drinks, \
-        and body & health pages. Your ONLY job is to infer the topical world of the activity that sits \
-        on top of that board.
+        ACTIVITY VOCABULARY to a child's communication board. Core vocabulary — pronouns, family, \
+        feelings, needs, yes/no/more/want — and the category pages that go with it are added \
+        separately by the caregiver, who chooses how much of it they want. Your ONLY job is to infer \
+        the topical world of the activity, and to leave that core vocabulary out of it.
         
         0. AGE-APPROPRIATE ONLY — This board is for a YOUNG NON-VERBAL CHILD. If the requested topic is \
         not appropriate for a young child — weapons/firearms/ammunition, drugs, alcohol, tobacco/vaping, \
@@ -111,8 +110,9 @@ struct SceneGeneratorService {
         specific to THIS activity (e.g. hay or an egg on a farm). Focus on what makes this scene unique.
 
         3. KEEP IT FLAT — Put every topical tile on a SINGLE page. Do NOT split into multiple pages, and \
-        do NOT add any navigation, "home", "back", or "next page" tiles. The app lays out the page across \
-        swipeable screens and adds the core cluster and category links itself. Return exactly one page.
+        do NOT add any navigation, "home", "back", or "next page" tiles. The app lays the page out across \
+        as many screens as it needs, and the caregiver adds any further pages themselves, choosing from \
+        their own vocabulary packs, word classes and existing boards. Return exactly one page.
 
         4. PEOPLE & ROLES — Any people you DO include are activity roles (farmer, fisherman, zookeeper). \
         To the child, adult helpers are simply "teacher" or a named caregiver (e.g. "Miss Cindy") — never \

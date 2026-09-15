@@ -34,8 +34,9 @@ already have, instantly, offline.
 1. **New Scene** → **No AI — combine packs & classes**
 2. Give it a name — "Snack time", "Farm visit"
 3. Pick any **Vocabulary Packs** (Farm, Tide Pools, Mealtime, Space, Dinosaurs,
-   Vehicles) and any **Word Classes** (actions, feelings, people, food…)
-4. **Create**
+   Vehicles) and any **Word Classes** (actions, feelings, people, food…). You
+   can also take pages from a scene you already have.
+4. **Next** — you see the board before anything is saved, then **Accept**
 
 Each pack and each class you tick becomes its own page, and a home page is
 created linking to all of them.
@@ -82,15 +83,18 @@ second job and forgetting the first.
    - ✗ "feelings"
    - ✓ "feelings for a 5-year-old working on frustration vs anger"
 3. **Generate Scene**
-4. You get a **Scene Preview** — pages, tiles, pictures, navigation, all of it.
-   Scroll through the whole thing.
-5. **Accept**, **Refine**, or **Cancel**
+4. You get a **Scene Preview** — every word the scene came back with. Scroll
+   through the whole thing.
+5. **Cancel**, **Refine**, or **Next**
 
-**Refine** is the underused one. Rather than accepting something that's 80%
-right, describe the change — "drop the school pages, add a page about the
-dog" — and it revises.
+**Refine** is the underused one. Rather than settling for something that's 80%
+right, describe the change — "drop the school words, add more about the dog" —
+and it revises. Do it here, before you add pages: refine rewrites the words the
+scene is about.
 
-Nothing is created until you tap Accept, and everything is editable afterwards.
+**Next** takes you to the structure step, described below, and then to a final
+preview of the finished board. Nothing is created until you tap **Accept**, and
+everything is editable afterwards.
 
 **If the scene introduces new words**, the preview says so, and any word the
 moderation check flagged is marked. You must resolve those before Accept.
@@ -104,9 +108,11 @@ decide; the app just makes sure you saw it. The full account is in
 ## Route 3 — Start from an example · AI mode off
 
 **New Scene** → **Start from an example** → pick a ready-made scene → **Load
-Example**. Instant, and nothing is generated. Good for seeing what a well-formed scene looks like
-before building your own. Edit the description first and the button switches to
-Generate, using the example as a starting point.
+Example**. Instant, and nothing is generated. It then walks the same preview →
+structure → accept path as a generated scene, so a ready-made board is a
+starting point rather than a fixed one. Good for seeing what a well-formed scene
+looks like before building your own. Edit the description first and the button
+switches to Generate, using the example as a starting point.
 
 ## Route 4 — Manual · AI mode off
 
@@ -120,8 +126,9 @@ this when you know exactly what you want and it's small.
 You land in the scene editor.
 
 - **Scene Info** — name, description, and the **Home Page** picker
-- **Focused layout** — a scaffold, not a filter. Read the warning below before
-  you touch it. Not available on Core-First.
+- **Structure → Add pages and core words** — the same step the new-scene walk
+  ends on, available again at any time. Everything it does is additive. Not
+  available on Core-First.
 - **Pages (N)** — every page, with a **HOME** badge on the home page and tile
   counts. Orange and red chips flag pages with words needing review.
 - **Add Page** — see [Pages and navigation](pages-and-navigation.md)
@@ -147,35 +154,52 @@ seen in more than one style.
 
 ---
 
-## A warning about Focused layout
+## Add pages and core words
 
-**Set it once, early, and then leave it alone.**
+Routes 2 and 3 put this question on its own screen between the preview and
+Accept: **how much board does this scene need?** Route 1 asks it up front — its
+picker is the same one — and Route 4 hands you an empty editor, where you can
+reach it whenever you want.
 
-Focused layout is not a view filter. It is a scaffold: switching it rebuilds
-the scene's structure around the words on your **home page** — a short needs
-strip (hungry/thirsty, help, feelings) plus a link out to body & health when
-it's on, the fuller set of category pages when it's off.
+A generated scene arrives flat: one page, holding only the words the scene is
+actually about. That is a complete answer for a lot of sessions, and it is the
+right shape for a child at Brown's Stage I. This step is where you say you want
+more.
 
-The consequence is the part to be careful about. **Pages you added yourself do
-not survive the toggle.** The rebuild starts from the home page's words, so a
-feelings page or a snack page you built by hand is not carried across — and
-switching back does not bring it back. On a scene you have only just generated
-there is nothing to lose; on one you have spent an afternoon on, there is.
+Three kinds of thing, and you can take any combination:
 
-So: decide focused or full while the scene is new, and after that treat the
-toggle as off-limits. If you want fewer words in front of a child on a given
-day, **conceal** them on the page instead — that keeps every other word exactly
-where the child learned it, and it is reversible.
+- **Core words on the home page** — *Nothing*, *Min-core* (a short needs strip:
+  i, you, want, help, feelings, yes/no, and a body & health page) or *Full core
+  board* (the familiar Core-First home, plus people, food, drinks and body &
+  health). The summary under the picker tells you what each one brings. A word
+  the scene already carries is skipped rather than added twice — so a scene
+  built around *more* and *all done* can take a core strip on top without
+  doubling them.
+- **A page per vocabulary pack or word class** — the same collections Route 1
+  builds from.
+- **Pages from another scene** — open a scene, tick the pages you want, and they
+  are copied in with their words.
 
-**Refine has the same edge.** Refine is good at adding and rewording, and blunt
-about removal: asking it to "remove the core words and body health" can take
-new words with it, because it is regenerating the scene rather than editing
-your copy of it. Remove things by hand in the editor, where you can see what
-went.
+Then you land on the finished board. **Back** returns you to the choices, so you
+can change your mind; nothing is written until **Accept**.
 
-We think this is the wrong shape for the feature and expect to change it — a
-scaffold you opt into once should not be a switch that can quietly cost you
-work. Until it does change, the guidance above is the safe path.
+**Everything here is added.** The step never removes a page, never reorders one,
+and never touches a tile you have already placed. That is what makes it safe to
+open again later — and you can: the scene editor has the same step under
+**Structure → Add pages and core words**, so a scene can start small and grow as
+the child does. Anything already on the scene is shown as "already on this
+scene" rather than quietly added twice.
+
+**Refine is the one with an edge.** Refine is good at adding and rewording, and
+blunt about removal: asking it to "remove the snack words" can take other words
+with it, because it regenerates the scene rather than editing your copy of it.
+That is why Refine sits *before* the structure step and not after — it rewrites
+the words the scene is about, and the pages you add are built around those. To
+remove something, do it by hand in the editor, where you can see what went.
+
+And if you want fewer words in front of a child on a given day, **conceal** them
+on the page rather than deleting: every other word stays exactly where the child
+learned it, and it is reversible.
 
 ---
 

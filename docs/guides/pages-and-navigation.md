@@ -128,8 +128,9 @@ words.
 
 That means a page with sixty tiles isn't an error, it just becomes a page the
 child has to scroll. Whether that's right depends on the child, and you know
-better than the app does. The **Focused layout** toggle in Scene Info is the
-blunt instrument for 1:1 sessions.
+better than the app does. A new scene starts with only the words it is about,
+and you decide how much more it gets — see **Add pages and core words** in
+[Make your first scene](make-your-first-scene.md).
 
 **Tile size** is Admin → Device → **Tile Density**, roughly 64pt to 160pt.
 It's a per-device setting, not per-child or per-scene.

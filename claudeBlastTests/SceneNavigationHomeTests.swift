@@ -46,7 +46,12 @@ struct SceneNavigationHomeTests {
             ])]
         )
 
-        let scaffolded = SceneNavigation.scaffold(raw, allTiles: allTiles, validKeys: validKeys)
+        // `.fullCore` explicitly: the default is now `.none`, which builds no
+        // category pages at all — and a scaffolder with nothing to build cannot
+        // demonstrate that it refrains from injecting home tiles. This test is
+        // about what the scaffolder does when it IS building structure.
+        let scaffolded = SceneNavigation.scaffold(raw, allTiles: allTiles, validKeys: validKeys,
+                                                  chrome: .fullCore)
 
         let homeLinks = scaffolded.pages.flatMap { page in
             page.tiles.filter { $0.link == SceneNavigation.homeLinkToken }
@@ -72,6 +77,51 @@ struct SceneNavigationHomeTests {
             page.tiles.filter { !$0.link.isEmpty && $0.link != SceneNavigation.homeLinkToken }
         }
         #expect(!crossLinks.isEmpty)
+
+        withExtendedLifetime(result) {}
+    }
+
+    /// Generation supplies NOTHING but the scene's own tiles.
+    ///
+    /// This is the contract the structure step depends on. Scenes used to arrive
+    /// pre-wrapped in a core cluster and four category pages, which made a
+    /// generated scene impossible to reason about — you could not tell what the
+    /// model produced from what we had added — and the only control over it was
+    /// a toggle that rebuilt the scene and dropped every hand-made page.
+    ///
+    /// If this regresses, the structure sheet starts double-adding chrome the
+    /// scene already silently had.
+    @Test func generationAddsNoChromeByDefault() throws {
+        let container = try makeTestContainer()
+        let ctx = container.mainContext
+        let result = BootstrapLoader.loadDefaultVocabulary(context: ctx)
+        let allTiles = try ctx.fetch(FetchDescriptor<TileModel>())
+        let validKeys = Set(allTiles.map(\.key))
+
+        let raw = GeneratedScene(
+            name: "Tide pools",
+            description: "topical only",
+            homePageKey: "home",
+            pages: [GeneratedPage(key: "home", tiles: [
+                GeneratedTile(key: "crab", isAudible: true, link: ""),
+                GeneratedTile(key: "starfish", isAudible: true, link: ""),
+            ])]
+        )
+
+        let bare = SceneNavigation.scaffold(raw, allTiles: allTiles, validKeys: validKeys)
+
+        // One page, holding only the words the model asked for.
+        #expect(bare.pages.count == 1)
+        #expect(Set(bare.pages.flatMap { $0.tiles.map(\.key) }) == ["crab", "starfish"])
+
+        // Nothing navigates anywhere, because there is nowhere to navigate to.
+        #expect(bare.pages.allSatisfy { $0.tiles.allSatisfy { $0.link.isEmpty } })
+
+        // The same input WITH chrome is materially bigger — so the emptiness
+        // above is the default doing its job, not the scaffolder failing.
+        let dressed = SceneNavigation.scaffold(raw, allTiles: allTiles, validKeys: validKeys,
+                                               chrome: .fullCore)
+        #expect(dressed.pages.count > bare.pages.count)
 
         withExtendedLifetime(result) {}
     }
