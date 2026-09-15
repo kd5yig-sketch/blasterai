@@ -66,13 +66,14 @@ enum AppSettingsKey {
     static let tileSizeStep          = "tile_size_step"
     static let compareProviders      = "compare_providers"
     static let imageSet              = "image_set"
-    /// When ON, AI art generation covers every generatable style rather than just
-    /// the active one (see `ImageSetCatalog.generationTargets`).
-    ///
-    /// Either way a *whole style* is generated, all of its variants: the variants
-    /// are one image plus transforms of it, so generating some of them is not a
-    /// meaningful request. This toggle picks how many styles, never how many
-    /// variants within one.
+    // Deprecated: the "Generate all styles" toggle. Left declared, like
+    // `tileMinSize` above, so the UserDefaults key isn't reused.
+    //
+    // It asked the caregiver to predict, before they could see any counts,
+    // whether a word should cost one image or twenty — and it was only
+    // defensible while that prediction was unrecoverable. The scene editor's Art
+    // Coverage rows now answer the same question afterwards, with the numbers in
+    // front of them, so drawing a word simply covers the style they are using.
     static let generateAllStyles     = "generate_all_styles"
 
     // Sentence tray timeline settings (PR cb-tray-timeline)

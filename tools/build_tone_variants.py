@@ -190,12 +190,23 @@ def chain_prompt(prev_key: str | None, tone_key: str) -> str:
         "wrong and is the most common mistake made on this task. Hair that is "
         "already dark stays exactly as it is. "
         "Keep strong value contrast at the hairline so it reads clearly against "
-        "the skin, and never tint hair with the skin colour.\n"
+        "the skin, and never tint hair with the skin colour. This contrast "
+        "instruction applies to HAIR ONLY.\n"
+        # The model was reading the hairline-contrast line as a general licence
+        # to preserve contrast against the new skin, and flipping whatever sat
+        # next to it: a black shirt to white, white newsprint to black.
+        "Do NOT adjust the contrast, brightness or value of anything else to "
+        "suit the new skin tone, and never invert or swap black and white "
+        "anywhere in the picture. White paper stays white with black print on "
+        "it. A black shirt stays black; a white shirt stays white. Elements "
+        "next to skin — sleeves, collars, a held object — are the ones most "
+        "often wrongly flipped; they must come through untouched.\n"
         "Change NOTHING else. Same person, same pose, same facial expression, "
         "same hairstyle, same clothing and identical clothing colours, same "
         "objects, same background, same black outlines at the same weight, same "
-        "composition. Do not redraw or restyle. Do not recolour clothing, food, "
-        "bread, wood, sand, or any object — only skin. No text anywhere."
+        "composition. Do not redraw or restyle. Do not recolour clothing, paper, "
+        "print, food, bread, wood, sand, or any object — only skin. "
+        "No text anywhere."
     )
 
 

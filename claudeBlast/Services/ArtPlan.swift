@@ -48,14 +48,21 @@ enum ArtPlan {
     /// The work for one word.
     ///
     /// - `activeSet`: the set the caregiver is actually looking at.
-    /// - `allStyles`: the "Generate all styles" setting.
+    /// - `allStyles`: cover every generatable style, completely.
+    ///
+    /// **Defaults to off, and nothing in the app turns it on any more.** Drawing
+    /// a word now always covers the style in front of you; wanting it everywhere
+    /// is answered afterwards, by the scene editor's Art Coverage rows, where
+    /// the counts are visible before you commit to them. The parameter stays
+    /// because "every style, completely" is still the meaning this function is
+    /// the authority on, and the tests exercise it.
     ///
     /// **Off** covers the active set's style, stopping at the active variant:
     /// someone on Medium needs Medium and the base it derives from, and Dark is a
     /// call they never asked for. **On** covers every generatable style,
     /// completely — "in all styles, make sure all variants exist" — so it must
     /// *not* also stop at the active variant.
-    static func plan(activeSet: ImageSetID, allStyles: Bool) -> [PlannedStyle] {
+    static func plan(activeSet: ImageSetID, allStyles: Bool = false) -> [PlannedStyle] {
         let styles = allStyles
             ? ImageSetCatalog.generationTargets(preferring: activeSet)
             : [ImageSetCatalog.style(for: activeSet)].compactMap { $0 }

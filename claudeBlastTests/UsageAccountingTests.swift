@@ -27,6 +27,24 @@ struct UsageAccountingTests {
         #expect(UsageCause.wordAuditScreen.isFreeEndpoint)
     }
 
+    // MARK: - Only image endpoints produce images
+
+    /// `/v1/models` answers with `{"object":"list","data":[…]}` — the model
+    /// catalogue, not pictures. Counting any `data` array as images logged ~132
+    /// per key check, and ten key checks put 1,320 imaginary images in the AI
+    /// Usage summary next to 20 real ones.
+    ///
+    /// The count is the whole claim of that panel, so the discriminator is
+    /// pinned here: the endpoint decides, never the shape of the JSON.
+    @Test func onlyImageEndpointsReturnImages() {
+        #expect(OpenAIEndpoint.producesImages(OpenAIEndpoint.imagesGenerations))
+        #expect(OpenAIEndpoint.producesImages(OpenAIEndpoint.imagesEdits))
+        #expect(!OpenAIEndpoint.producesImages(OpenAIEndpoint.models))
+        #expect(!OpenAIEndpoint.producesImages(OpenAIEndpoint.chatCompletions))
+        #expect(!OpenAIEndpoint.producesImages(OpenAIEndpoint.moderations))
+        #expect(!OpenAIEndpoint.producesImages(""))
+    }
+
     // MARK: - Price arithmetic
 
     /// A rate quoted per 1M tokens, applied to N tokens, expressed in
