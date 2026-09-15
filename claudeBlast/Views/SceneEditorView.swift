@@ -30,6 +30,7 @@ struct SceneEditorView: View {
     @State private var isRefining = false
     @State private var isGeneratingArt = false
     @State private var showPreview = false
+    @State private var showStructureSheet = false
     @State private var showKeySheet = false
     @State private var pageToLink: PageLinkTarget? = nil
     /// The page being shared, if any. Keyed rather than held by value so the
@@ -226,14 +227,16 @@ struct SceneEditorView: View {
             }
 
             Section {
-                Toggle(isOn: Binding(get: { scene.isFocused }, set: { setProfile(focused: $0) })) {
-                    Text("Focused board")
+                Button {
+                    showStructureSheet = true
+                } label: {
+                    Label("Add pages and core words…", systemImage: "square.stack.3d.up")
                 }
                 .disabled(scene.isDefault)
             } header: {
-                Text("Focused layout")
+                Text("Structure")
             } footer: {
-                Text("Focused trims the board for 1:1 sessions: the topical tiles plus a short needs strip (hungry/thirsty, help, feelings) and the body & health page. Off uses the full familiar board (people, food, drinks, body & health).")
+                Text("The same step the new-scene wizard walks through: category pages, pages from a vocabulary pack or another scene, and a core-word strip for the home page. Everything here is added — nothing you have already built is removed or rearranged.")
             }
 
             // Page count, then the scene's total tile placements across them —
@@ -321,6 +324,9 @@ struct SceneEditorView: View {
         }
         .fullScreenCover(isPresented: $showPreview) {
             ScenePreviewBoardView(scene: scene, allTiles: allTiles)
+        }
+        .sheet(isPresented: $showStructureSheet) {
+            SceneStructureSheet(scene: scene, allTiles: allTiles)
         }
         .sheet(isPresented: $showKeySheet) {
             APIKeyEntrySheet()
@@ -516,34 +522,6 @@ struct SceneEditorView: View {
         try? modelContext.save()
     }
 
-    /// Re-scaffold the scene at the chosen board profile. Pure local transform:
-    /// the topical layer is preserved and the core board is rebuilt full or lean.
-    private func setProfile(focused: Bool) {
-        let lookup = tileLookup
-        let topical = SceneNavigation.topicalKeys(of: scene).map { key -> GeneratedTile in
-            let tile = lookup[key]
-            let isCaregiverWord = (tile?.isSystem == false)
-            return GeneratedTile(key: key, isAudible: true, link: "",
-                                 displayName: tile?.value,
-                                 wordClass: isCaregiverWord ? tile?.wordClass : nil)
-        }
-        let base = GeneratedScene(
-            name: scene.name,
-            description: scene.descriptionText,
-            homePageKey: scene.homePageKey,
-            pages: [GeneratedPage(key: scene.homePageKey, tiles: topical)]
-        )
-        let scaffolded = SceneNavigation.scaffold(base, allTiles: allTiles,
-                                                  validKeys: Set(allTiles.map(\.key)),
-                                                  profile: focused ? .focused : .full)
-        do {
-            try SceneBuilder.update(scene, from: scaffolded, tileLookup: lookup, context: modelContext)
-            scene.isFocused = focused
-            try? modelContext.save()
-        } catch {
-            // Leave the scene unchanged on failure.
-        }
-    }
 }
 
 // MARK: - Page Generator Sheet
@@ -1021,6 +999,9 @@ private struct PageGeneratorSheet: View {
             PageLink.mint(pageKey: key,
                           displayName: pageName.trimmingCharacters(in: .whitespacesAndNewlines),
                           context: modelContext, existing: lookup)
+            AuthoringLog.created(.page, key: key,
+                                 prompt: pageGoal.trimmingCharacters(in: .whitespacesAndNewlines),
+                                 in: modelContext)
             onCreate(key, [])
         }
         try? modelContext.save()
@@ -1083,6 +1064,7 @@ private struct PageGeneratorSheet: View {
             PageLink.mint(pageKey: pageKey, displayName: built.displayName, imageKey: imageKey,
                           context: modelContext, existing: lookup)
         }
+        AuthoringLog.created(.page, key: pageKey, in: modelContext)
         try? modelContext.save()
         onCreate(pageKey, [])
         dismiss()
@@ -1556,7 +1538,6 @@ private struct SceneRefinementSheet: View {
         Dictionary(allTiles.map { ($0.key, $0) }, uniquingKeysWith: { first, _ in first })
     }
 
-    private var profile: SceneNavigation.Profile { scene.isFocused ? .focused : .full }
 
     var body: some View {
         NavigationStack {
@@ -1565,8 +1546,7 @@ private struct SceneRefinementSheet: View {
                     preview: preview,
                     allTiles: allTiles,
                     apiKey: apiKey,
-                    profile: profile,
-                    onAccept: { scene, _ in apply(scene) },
+                    onAccept: { apply($0) },
                     onCancel: { dismiss() }
                 )
             } else {
@@ -1583,7 +1563,7 @@ private struct SceneRefinementSheet: View {
             } header: {
                 Text("Refine \(scene.name.isEmpty ? "Scene" : scene.name)")
             } footer: {
-                Text("e.g. \u{201C}add a fish pond and a creek\u{201D} — the activity tiles update; the familiar core board stays the same.")
+                Text("e.g. \u{201C}add a fish pond and a creek\u{201D} — this rewrites the words the scene is about. Pages you added yourself are left alone.")
             }
 
             if let errorMessage {
@@ -1631,7 +1611,7 @@ private struct SceneRefinementSheet: View {
         let tiles = allTiles
         Task {
             do {
-                let result = try await service.refine(instruction: text, currentTopical: topical, allTiles: tiles, profile: profile)
+                let result = try await service.refine(instruction: text, currentTopical: topical, allTiles: tiles)
                 await MainActor.run { preview = result }
             } catch {
                 await MainActor.run { errorMessage = error.localizedDescription }
@@ -1643,6 +1623,9 @@ private struct SceneRefinementSheet: View {
     private func apply(_ generated: GeneratedScene) {
         do {
             try SceneBuilder.update(scene, from: generated, tileLookup: tileLookup, context: modelContext)
+            AuthoringLog.refined(.scene, key: scene.sceneID, instruction: instruction,
+                                 in: modelContext)
+            try? modelContext.save()
             dismiss()
         } catch {
             errorMessage = error.localizedDescription

@@ -685,10 +685,14 @@ enum MetricCompactor {
     /// `combinationSubjectTypes`. Dropping it keeps the counts (how many
     /// lookups, how many hits, how many sentences) and loses only which
     /// combinations were involved.
+    /// `detail` is in the key for the same reason it is in `APIUsageEvent`'s:
+    /// a sum across differing text is meaningless. Two refines of one scene share
+    /// subject and type, so without this they would fold to `count: 2` and both
+    /// instructions — the only thing those rows are for — would be gone.
     static func foldKey(for event: MetricEvent) -> String {
         let subject = combinationSubjectTypes.contains(event.subjectType)
             ? "" : event.subjectKey
-        return "\(event.subjectType)|\(subject)|\(event.eventTypeRaw)"
+        return "\(event.subjectType)|\(subject)|\(event.eventTypeRaw)|\(event.detail)"
     }
 
     /// As documented on `APIUsageEvent` itself, and binding: a sum across differing

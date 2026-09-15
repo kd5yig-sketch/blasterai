@@ -144,21 +144,55 @@ struct SceneRow: View {
 
 // MARK: - Scene Generator Sheet
 
+/// Creating a scene, as a walk rather than a form.
+///
+/// Every way in — describe it to the AI, load a ready-made example, or tick
+/// packs and word classes — lands in the same three closing steps:
+///
+///     compose / example / collections
+///        └─→ review    "are these the right words?"   Cancel · Refine · Next
+///        └─→ structure "what pages does it need?"     Back · Next
+///        └─→ confirm   "is this the right board?"     Back · Accept
+///
+/// Nothing is written until Accept. Structure used to be decided *for* a
+/// generated scene and not offered at all to the other two paths; making it a
+/// step every path walks is what lets a scene start flat and grow deliberately.
+/// The collections path skips `review` — its words were chosen by hand a screen
+/// ago, and there is nothing for the AI to refine.
 struct SceneGeneratorSheet: View {
     let allTiles: [TileModel]
     let apiKey: String
     let onAccept: (BlasterScene) -> Void
     let onManual: (String) -> Void
 
+    private enum Step { case compose, manual, collections, review, structure, confirm }
+
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
 
+    @State private var step: Step = .compose
+    /// Which entry the scene in flight came from — see `isFromCollections`.
+    @State private var origin: Step = .compose
     @State private var sessionDescription = ""
     @State private var isGenerating = false
     @State private var generationError: String? = nil
-    @State private var preview: GeneratedScene? = nil
     @State private var manualName = ""
-    @State private var showManual = false
+    /// The scene as reviewed, before any structure. Kept so Back from confirm
+    /// can re-run the structure step against the original rather than piling a
+    /// second copy of everything onto a scene that already has it.
+    @State private var reviewScene: GeneratedScene? = nil
+    /// The scene as it will be built: `reviewScene` plus the structure step's
+    /// pages. Equal to `reviewScene` when nothing was added.
+    @State private var finalScene: GeneratedScene? = nil
+    @State private var structure = SceneStructureResult()
+    @State private var structurePlan = SceneStructurePlan()
+    /// One moderation review for the whole walk. See `ScenePreviewView.review`.
+    @State private var wordReview = NewWordReviewModel()
+    /// How this scene was asked for — the typed brief, then any refine
+    /// instructions, in order. Logged on Accept; see `AuthoringLog`.
+    @State private var brief: [String] = []
+    @State private var collectionsName = ""
+    @State private var collectionsPlan = SceneStructurePlan()
     /// Set while previewing an unedited cached starter; drives the cache-import
     /// accept path and the "served from cache" badge. Cleared on refine.
     @State private var cachedStarter: StarterScene? = nil
@@ -167,26 +201,86 @@ struct SceneGeneratorSheet: View {
 
     var body: some View {
         NavigationStack {
-            if let preview {
-                ScenePreviewView(
-                    preview: preview,
-                    allTiles: allTiles,
-                    apiKey: apiKey,
-                    profile: .focused,
-                    previewImages: cachedPreviewImages,
-                    onRefined: { cachedStarter = nil },
-                    onAccept: { scene, focused in buildAndAccept(scene, focused: focused) },
-                    onCancel: { dismiss() }
-                )
-                .navigationTitle("Scene Preview")
-                .navigationBarTitleDisplayMode(.inline)
-            } else if showManual {
-                manualForm
-            } else {
+            switch step {
+            case .compose:
                 generatorForm
+            case .manual:
+                manualForm
+            case .collections:
+                SceneFromCollectionsView(
+                    allTiles: allTiles,
+                    sceneName: $collectionsName,
+                    plan: $collectionsPlan,
+                    onNext: { scene, result in
+                        reviewScene = scene
+                        finalScene = scene
+                        structure = result
+                        origin = .collections
+                        step = .confirm
+                    },
+                    onBack: { step = .compose }
+                )
+            case .review:
+                if let reviewScene {
+                    ScenePreviewView(
+                        preview: reviewScene,
+                        allTiles: allTiles,
+                        apiKey: apiKey,
+                        previewImages: cachedPreviewImages,
+                        stage: .review,
+                        review: wordReview,
+                        onRefined: { instruction in
+                            cachedStarter = nil
+                            brief.append(instruction)
+                        },
+                        onNext: { scene in
+                            self.reviewScene = scene
+                            step = .structure
+                        },
+                        onAccept: { _ in },
+                        onCancel: { dismiss() }
+                    )
+                    .navigationTitle("Scene Preview")
+                    .navigationBarTitleDisplayMode(.inline)
+                }
+            case .structure:
+                if let reviewScene {
+                    SceneStructureStep(
+                        scene: reviewScene,
+                        allTiles: allTiles,
+                        plan: $structurePlan,
+                        onNext: { scene, result in
+                            finalScene = scene
+                            structure = result
+                            step = .confirm
+                        },
+                        onBack: { step = .review }
+                    )
+                }
+            case .confirm:
+                if let finalScene {
+                    ScenePreviewView(
+                        preview: finalScene,
+                        allTiles: allTiles,
+                        apiKey: apiKey,
+                        previewImages: cachedPreviewImages,
+                        extraTiles: structure.createdTiles,
+                        stage: .confirm,
+                        review: wordReview,
+                        onAccept: { buildAndAccept($0) },
+                        onCancel: { step = isFromCollections ? .collections : .structure }
+                    )
+                    .navigationTitle("Scene Preview")
+                    .navigationBarTitleDisplayMode(.inline)
+                }
             }
         }
     }
+
+    /// Which entry produced the scene now in flight. The collections path has no
+    /// review stage, so Back from confirm has to return to its own picker rather
+    /// than to a structure step it never visited.
+    private var isFromCollections: Bool { origin == .collections }
 
     private var generatorForm: some View {
         VStack(spacing: 0) {
@@ -242,11 +336,8 @@ struct SceneGeneratorSheet: View {
                 }
 
                 Section {
-                    NavigationLink {
-                        SceneFromCollectionsView(allTiles: allTiles) { scene in
-                            onAccept(scene)
-                            dismiss()
-                        }
+                    Button {
+                        step = .collections
                     } label: {
                         Label("Build from collections", systemImage: "square.stack.3d.up.fill")
                     }
@@ -254,7 +345,7 @@ struct SceneGeneratorSheet: View {
                 } header: {
                     Text("No AI — combine packs & classes")
                 } footer: {
-                    Text("Pick vocabulary packs and word classes; each becomes a page, with a home screen linking them. Instant, no key needed.")
+                    Text("Pick vocabulary packs and word classes; each becomes a page, with a home screen linking them. Instant, no key needed. You still see the board before it is saved.")
                         .font(.caption)
                 }
 
@@ -310,7 +401,7 @@ struct SceneGeneratorSheet: View {
                 Button("Cancel") { dismiss() }
             }
             ToolbarItem(placement: .navigationBarTrailing) {
-                Button("Manual") { showManual = true }
+                Button("Manual") { step = .manual }
                     .font(.subheadline)
             }
         }
@@ -326,7 +417,7 @@ struct SceneGeneratorSheet: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
-                Button("Back") { showManual = false }
+                Button("Back") { step = .compose }
             }
             ToolbarItem(placement: .confirmationAction) {
                 Button("Create") {
@@ -356,7 +447,7 @@ struct SceneGeneratorSheet: View {
         Task {
             do {
                 let result = try await service.generate(description: desc, allTiles: tiles)
-                await MainActor.run { preview = result }
+                await MainActor.run { show(result, brief: [desc]) }
             } catch {
                 await MainActor.run { generationError = error.localizedDescription }
             }
@@ -379,58 +470,117 @@ struct SceneGeneratorSheet: View {
             Task {
                 try? await Task.sleep(for: .milliseconds(1200))
                 await MainActor.run {
-                    preview = loaded.scene
+                    show(loaded.scene, brief: [starter.prompt])
                     isGenerating = false
                 }
             }
         } else {
-            preview = loaded.scene
+            show(loaded.scene, brief: [starter.prompt])
         }
     }
 
-    private func buildAndAccept(_ generated: GeneratedScene, focused: Bool) {
+    /// Enter the closing walk with a freshly produced scene.
+    private func show(_ scene: GeneratedScene, brief: [String] = []) {
+        self.brief = brief
+        reviewScene = scene
+        finalScene = scene
+        structure = SceneStructureResult()
+        structurePlan = SceneStructurePlan()
+        origin = .compose
+        step = .review
+    }
+
+    private func buildAndAccept(_ generated: GeneratedScene) {
         // Unedited cached starter → import the bundle (art re-attached from
-        // sidecars inside importBundle, preserving the bundled pictures).
+        // sidecars inside importBundle, preserving the bundled pictures), then
+        // lay the structure step's pages on top. The structure can't go through
+        // `generated` here: the bundle import, not the preview, is what produces
+        // this scene, and going the other way would cost the bundled art.
         if let starter = cachedStarter {
             if let scene = starter.importBundle(context: modelContext) {
-                // Starter bundles are authored Focused — flag the imported scene to
-                // match, or the editor's Focused toggle shows Off over a focused
-                // board (and toggling it re-scaffolds to full).
-                scene.isFocused = focused
                 scene.creationSummary = "⚡ Served from cache — instant, no tokens used"
+                scene.applyStructure(structure)
+                logBrief(for: scene)
+                try? modelContext.save()
                 onAccept(scene)
             }
             dismiss()
             return
         }
-        let tileLookup = Dictionary(allTiles.map { ($0.key, $0) }, uniquingKeysWith: { first, _ in first })
+        // MUST fetch rather than use `allTiles`: the structure step installs pack
+        // words and mints page-link tiles, and that @Query snapshot predates them.
+        // Building against the stale map would drop every nav tile it just added.
+        let tiles = (try? modelContext.fetch(FetchDescriptor<TileModel>())) ?? allTiles
+        let tileLookup = Dictionary(tiles.map { ($0.key, $0) }, uniquingKeysWith: { first, _ in first })
         if let scene = try? SceneBuilder.build(from: generated, tileLookup: tileLookup, context: modelContext) {
-            // The previewed `generated` scene was already scaffolded at this
-            // profile, so the flag matches the pages the board will show.
-            scene.isFocused = focused
             if let tokens = generated.tokenUsage {
                 scene.creationSummary = "Generated with AI · \(tokens) tokens"
             }
+            logBrief(for: scene)
+            try? modelContext.save()
             onAccept(scene)
         }
         dismiss()
+    }
+
+    /// Record how this scene was asked for: the original brief as the creation,
+    /// then each refine instruction in the order they were given. Logged only on
+    /// Accept — a brief for a scene that was cancelled describes nothing.
+    private func logBrief(for scene: BlasterScene) {
+        guard let first = brief.first else {
+            AuthoringLog.created(.scene, key: scene.sceneID, in: modelContext)
+            return
+        }
+        AuthoringLog.created(.scene, key: scene.sceneID, prompt: first, in: modelContext)
+        for instruction in brief.dropFirst() {
+            AuthoringLog.refined(.scene, key: scene.sceneID, instruction: instruction,
+                                 in: modelContext)
+        }
     }
 }
 
 // MARK: - Scene Preview View
 
 struct ScenePreviewView: View {
+    /// Which half of the wizard this preview is serving.
+    ///
+    /// The same grid does both jobs, because they show the same thing and only
+    /// the question differs: *review* asks "is this the right vocabulary?" and
+    /// leads to the structure step; *confirm* asks "is this the right board?"
+    /// and is the last stop before the scene is saved.
+    enum Stage {
+        /// Cancel · Refine · Next — before structure is chosen.
+        case review
+        /// Back · Accept — after it is.
+        case confirm
+        /// Cancel · Accept — not part of the creation walk. Refining a scene
+        /// that already exists previews a replacement for it; there is no
+        /// structure step to go forward to and nothing behind it to go back to.
+        case standalone
+    }
+
     let allTiles: [TileModel]
     let apiKey: String
-    /// Board profile used when an in-place refinement re-scaffolds the scene.
-    let profile: SceneNavigation.Profile
     /// Bundled art for not-yet-imported tiles (cached starter preview), key→PNG.
     let previewImages: [String: Data]
-    /// Called when an in-place refinement replaces the scene (so a cached starter
-    /// preview can drop its "served from cache" identity — it's now a live scene).
-    let onRefined: () -> Void
-    /// Emits the accepted scene plus whether the Focused board profile is on.
-    let onAccept: (GeneratedScene, Bool) -> Void
+    /// Tiles created since `allTiles` was captured — pack words installed and
+    /// page links minted by the structure step. A `@Query` snapshot does not
+    /// refresh mid-flow, so without these the pages just added would render as
+    /// empty gaps.
+    let extraTiles: [TileModel]
+    let stage: Stage
+    /// See `review` below.
+    let injectedReview: NewWordReviewModel?
+    /// Called when an in-place refinement replaces the scene, with the
+    /// instruction that drove it — so a cached starter preview can drop its
+    /// "served from cache" identity (it's a live scene now), and so the host can
+    /// keep the instruction for the authoring log.
+    let onRefined: (String) -> Void
+    /// Review stage only: move on to the structure step with the scene as shown.
+    let onNext: (GeneratedScene) -> Void
+    /// Confirm stage only: emits the scene to build.
+    let onAccept: (GeneratedScene) -> Void
+    /// Cancel (review) or Back (confirm) — the host decides which it is.
     let onCancel: () -> Void
 
     /// The scene currently shown — seeded from the initial preview and replaced
@@ -440,42 +590,35 @@ struct ScenePreviewView: View {
     @State private var isRefining = false
     @State private var refineError: String? = nil
     @State private var showRefineSheet = false
-    /// Focused board profile: topical tiles alone (template removed) vs the full
-    /// familiar board (topical + Core template). Seeded from the caller's profile —
-    /// the generator opens Focused (ON); the editor mirrors the scene's setting.
-    @State private var focused: Bool
 
     init(preview: GeneratedScene,
          allTiles: [TileModel],
          apiKey: String,
-         profile: SceneNavigation.Profile = .full,
          previewImages: [String: Data] = [:],
-         onRefined: @escaping () -> Void = {},
-         onAccept: @escaping (GeneratedScene, Bool) -> Void,
+         extraTiles: [TileModel] = [],
+         stage: Stage = .standalone,
+         review: NewWordReviewModel? = nil,
+         onRefined: @escaping (String) -> Void = { _ in },
+         onNext: @escaping (GeneratedScene) -> Void = { _ in },
+         onAccept: @escaping (GeneratedScene) -> Void,
          onCancel: @escaping () -> Void) {
         self.allTiles = allTiles
         self.apiKey = apiKey
-        self.profile = profile
         self.previewImages = previewImages
+        self.extraTiles = extraTiles
+        self.stage = stage
+        self.injectedReview = review
         self.onRefined = onRefined
+        self.onNext = onNext
         self.onAccept = onAccept
         self.onCancel = onCancel
-        // Seed the toggle + board from the caller's profile: the generator opens
-        // Focused, the editor mirrors the scene. Re-scaffold topical-only when
-        // Focused (cached starters have no rawContent → fall back to the preview).
-        _focused = State(initialValue: profile == .focused)
-        if profile == .focused, let content = preview.rawContent,
-           let parsed = try? GeneratedScene.parse(content: content, allTiles: allTiles, profile: .focused) {
-            var f = parsed
-            f.tokenUsage = preview.tokenUsage
-            _working = State(initialValue: f)
-        } else {
-            _working = State(initialValue: preview)
-        }
+        // Nothing is wrapped around the scene here: `parse` adds no chrome, and
+        // structure is its own step. What you see is what was produced.
+        _working = State(initialValue: preview)
     }
 
     private var tileLookup: [String: TileModel] {
-        Dictionary(allTiles.map { ($0.key, $0) }, uniquingKeysWith: { first, _ in first })
+        Dictionary((allTiles + extraTiles).map { ($0.key, $0) }, uniquingKeysWith: { first, _ in first })
     }
 
     private let columns = [GridItem(.adaptive(minimum: 60, maximum: 76))]
@@ -498,8 +641,14 @@ struct ScenePreviewView: View {
         return names
     }
 
-    // At-authoring moderation review of the proposed NEW words (same as Page Preview).
-    @State private var review = NewWordReviewModel()
+    // At-authoring moderation review of the proposed NEW words (same as Page
+    // Preview). Injected by the wizard so keep/remove decisions survive the walk
+    // from review to confirm: each stage is a different view, so a `@State` model
+    // here would be built fresh on arrival and the caregiver's answers — the
+    // whole point of the gate — would silently reset. `ownReview` covers the
+    // standalone case, which has only one stage and nothing to carry.
+    @State private var ownReview = NewWordReviewModel()
+    private var review: NewWordReviewModel { injectedReview ?? ownReview }
 
     private var newWordEntries: [(key: String, name: String)] {
         var seen = Set<String>()
@@ -525,12 +674,6 @@ struct ScenePreviewView: View {
                                  rawContent: working.rawContent)
     }
 
-    /// Accept: drop removed + untouched blocked words, then hand off the cleaned scene.
-    private func acceptModerated() {
-        for key in review.droppedKeys(present: presentNewKeys) { removeNewWord(key) }
-        onAccept(working, focused)
-    }
-
     var body: some View {
         VStack(spacing: 0) {
             // Header
@@ -546,18 +689,6 @@ struct ScenePreviewView: View {
             }
             .padding(.top, 12)
             .padding(.horizontal)
-
-            // Focused board toggle — only for AI-generated scenes (cached starters
-            // have fixed pages and no raw content to re-scaffold).
-            if working.rawContent != nil {
-                Toggle(isOn: $focused) {
-                    Label("Focused board", systemImage: "scope")
-                        .font(.caption)
-                }
-                .padding(.horizontal)
-                .padding(.top, 8)
-                .onChange(of: focused) { _, _ in applyFocus() }
-            }
 
             // New-word summary: tells the author what will be added to vocabulary.
             if !newWords.isEmpty {
@@ -650,8 +781,28 @@ struct ScenePreviewView: View {
 
             NewWordReviewStatus(review: review, present: presentNewKeys)
 
-            // Action bar
-            HStack(spacing: 10) {
+            actionBar
+                .padding()
+        }
+        .sheet(isPresented: $showRefineSheet) {
+            SceneRefineInputSheet { instruction in
+                showRefineSheet = false
+                runRefine(instruction)
+            } onCancel: {
+                showRefineSheet = false
+            }
+        }
+    }
+
+    /// Cancel/Back on the left, then the stage's forward move. Refine only
+    /// appears at review: once structure has been added, a refine would rewrite
+    /// the topical layer underneath it and the pages would no longer match the
+    /// words they were built around.
+    @ViewBuilder
+    private var actionBar: some View {
+        HStack(spacing: 10) {
+            switch stage {
+            case .review:
                 Button("Cancel", role: .destructive) { onCancel() }
                     .buttonStyle(.bordered)
                     .tint(.red)
@@ -667,32 +818,36 @@ struct ScenePreviewView: View {
                 }
                 .buttonStyle(.bordered)
                 .disabled(isRefining || apiKey.isEmpty)
-                Button("Accept") { acceptModerated() }
+                Button("Next") { advance() }
                     .buttonStyle(.borderedProminent)
                     .disabled(isRefining || !review.canAccept(present: presentNewKeys))
-            }
-            .padding()
-        }
-        .sheet(isPresented: $showRefineSheet) {
-            SceneRefineInputSheet { instruction in
-                showRefineSheet = false
-                runRefine(instruction)
-            } onCancel: {
-                showRefineSheet = false
+            case .confirm, .standalone:
+                Button(stage == .confirm ? "Back" : "Cancel",
+                       role: stage == .confirm ? nil : .destructive) { onCancel() }
+                    .buttonStyle(.bordered)
+                    .tint(stage == .confirm ? nil : .red)
+                Spacer()
+                Button("Accept") { advance() }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(isRefining || !review.canAccept(present: presentNewKeys))
             }
         }
     }
 
-    /// Re-derive the previewed scene from its raw content at the current profile
-    /// (focused ⇄ full) — no API call, just a re-scaffold. Preserves token usage.
-    private func applyFocus() {
-        guard let content = working.rawContent,
-              let parsed = try? GeneratedScene.parse(content: content, allTiles: allTiles,
-                                                     profile: focused ? .focused : .full) else { return }
-        var next = parsed
-        next.tokenUsage = working.tokenUsage
-        working = next
-        selectedPageIndex = 0
+    /// Hand the scene to whichever move this stage makes.
+    ///
+    /// Removed and blocked words are dropped only at the end. Dropping them on
+    /// the way *through* would change the word set, and the review model keys its
+    /// analysis on that set — so the next stage would re-run moderation and throw
+    /// away the keep/remove answers the caregiver just gave.
+    private func advance() {
+        switch stage {
+        case .review:
+            onNext(working)
+        case .confirm, .standalone:
+            for key in review.droppedKeys(present: presentNewKeys) { removeNewWord(key) }
+            onAccept(working)
+        }
     }
 
     private func runRefine(_ instruction: String) {
@@ -705,11 +860,11 @@ struct ScenePreviewView: View {
         let tiles = allTiles
         Task {
             do {
-                let result = try await service.refine(instruction: text, currentTopical: currentTopical, allTiles: tiles, profile: focused ? .focused : .full)
+                let result = try await service.refine(instruction: text, currentTopical: currentTopical, allTiles: tiles)
                 await MainActor.run {
                     working = result
                     selectedPageIndex = 0
-                    onRefined()
+                    onRefined(text)
                 }
             } catch {
                 await MainActor.run { refineError = error.localizedDescription }
@@ -734,7 +889,7 @@ struct SceneRefineInputSheet: View {
                     TextField("Describe the change…", text: $instruction, axis: .vertical)
                         .lineLimit(3...6)
                 } footer: {
-                    Text("e.g. \u{201C}add a fish pond and a creek\u{201D}, or \u{201C}remove the tractor\u{201D}. The familiar core board stays the same.")
+                    Text("e.g. \u{201C}add a fish pond and a creek\u{201D}, or \u{201C}remove the tractor\u{201D}. This changes the words the scene is about; pages and core words are the next step.")
                 }
             }
             .navigationTitle("Refine Scene")

@@ -49,7 +49,7 @@ enum SceneNavigation {
     /// A familiar Core-First category page, rebuilt by word class. `crossLinks`
     /// are sibling category pages it links to (mirrors core_first.json: the food
     /// page links drinks and vice-versa).
-    private struct CoreCategory {
+    fileprivate struct CoreCategory {
         let pageKey: String
         let iconKey: String
         let wordClasses: Set<String>
@@ -59,7 +59,7 @@ enum SceneNavigation {
     /// The curated rich pages bundled into every generated scene — the ones the
     /// child already knows. Mirrors core_first.json's food/drinks/people/
     /// body_health page definitions.
-    private static let coreCategories: [CoreCategory] = [
+    fileprivate static let coreCategories: [CoreCategory] = [
         CoreCategory(pageKey: "people", iconKey: "people",
                      wordClasses: ["people"], crossLinks: []),
         CoreCategory(pageKey: "food", iconKey: "food",
@@ -74,7 +74,7 @@ enum SceneNavigation {
     /// tiles — the familiar high-frequency words from the Core-First home. Plain
     /// audible tiles; `eat`/`drink` are added separately as audible links to the
     /// food/drinks pages.
-    private static let homeClusterKeys: [String] = [
+    fileprivate static let homeClusterKeys: [String] = [
         "i", "you", "me", "my", "he", "she", "we", "they", "teacher", "mom", "dad", "friend",
         "help", "hungry", "thirsty", "bathroom",
         "happy", "sad", "tired", "hurt", "sick", "scared",
@@ -83,23 +83,90 @@ enum SceneNavigation {
 
     /// Audible link tiles on the home page that both speak and navigate to a rich
     /// page (mirrors Core-First's eat→food_drinks). (clusterKey, destinationPage).
-    private static let homeClusterLinks: [(key: String, to: String)] = [
+    fileprivate static let homeClusterLinks: [(key: String, to: String)] = [
         ("eat", "food"),
         ("drink", "drinks"),
     ]
 
-    /// Lean cluster for the Focused board: a minimal needs strip with feelings
-    /// and a couple of pronouns. No eat/drink links — hungry/thirsty stand in for
-    /// food & drink — and only the body & health page is bundled (see scaffold).
-    private static let focusedClusterKeys: [String] = [
+    /// Lean cluster: a minimal needs strip with feelings and a couple of
+    /// pronouns. No eat/drink links — hungry/thirsty stand in for food & drink —
+    /// and only the body & health page comes with it.
+    fileprivate static let minCoreClusterKeys: [String] = [
         "i", "you", "want",
         "help", "more", "hungry", "thirsty", "bathroom",
         "happy", "sad", "tired", "hurt", "sick", "scared",
         "yes", "no", "all_done", "look",
     ]
 
-    /// How much of the familiar Core board to scaffold around the topical tiles.
-    enum Profile { case full, focused }
+    /// How much familiar core board to wrap around a scene's own tiles.
+    ///
+    /// **`.none` is the default, and that is the point.** Generation used to
+    /// inject a core cluster and four category pages silently, which made a
+    /// generated scene impossible to reason about: you could not tell what the
+    /// model had produced from what we had added, and the only way to remove any
+    /// of it was a toggle that rebuilt the scene and dropped every page you had
+    /// made yourself. Now nothing is added unless someone asks for it, and what
+    /// they asked for is visible in the sheet that asked.
+    enum ChromeBundle: String, CaseIterable, Identifiable, Sendable {
+        /// Just the scene's own tiles. Nothing supplied.
+        case none
+        /// A needs strip — pronouns, help, feelings, yes/no — plus body & health.
+        case minCore
+        /// The familiar Core-First home: the full cluster, eat/drink links, and
+        /// the people / food / drinks / body & health pages.
+        case fullCore
+
+        public var id: String { rawValue }
+
+        var title: String {
+            switch self {
+            case .none:     return "Nothing"
+            case .minCore:  return "Min-core"
+            case .fullCore: return "Full core board"
+            }
+        }
+
+        var summary: String {
+            switch self {
+            case .none:
+                return "Only the words this scene is about. Add pages and core words yourself."
+            case .minCore:
+                return "A short needs strip — i, you, want, help, feelings, yes/no — and a body & health page."
+            case .fullCore:
+                return "The familiar Core-First home page, plus people, food, drinks and body & health pages."
+            }
+        }
+
+        /// Home-page words this bundle appends after the scene's own tiles.
+        var clusterKeys: [String] {
+            switch self {
+            case .none:     return []
+            case .minCore:  return minCoreClusterKeys
+            case .fullCore: return homeClusterKeys
+            }
+        }
+
+        /// Audible home-page tiles that also navigate.
+        var clusterLinks: [(key: String, to: String)] {
+            self == .fullCore ? homeClusterLinks : []
+        }
+
+        /// The word classes behind this bundle's category pages, in page order.
+        /// Exposed so a caller can build those pages through the normal
+        /// `CollectionSource` path rather than reaching into the scaffolder.
+        var categoryPageClasses: [(pageKey: String, wordClasses: [String])] {
+            categories.map { ($0.pageKey, Array($0.wordClasses).sorted()) }
+        }
+
+        /// Category pages this bundle brings with it.
+        fileprivate var categories: [CoreCategory] {
+            switch self {
+            case .none:     return []
+            case .minCore:  return coreCategories.filter { $0.pageKey == "body_health" }
+            case .fullCore: return coreCategories
+            }
+        }
+    }
 
     /// Build the canonical scene: a topical home page (topical tiles first, then
     /// the familiar core cluster and category links) plus the bundled rich
@@ -109,16 +176,15 @@ enum SceneNavigation {
     /// `allTiles` is the live vocabulary (used to fill category pages and confirm
     /// keys exist); `validKeys` is its key set.
     static func scaffold(_ scene: GeneratedScene, allTiles: [TileModel], validKeys: Set<String>,
-                         profile: Profile = .full) -> GeneratedScene {
-        let clusterKeys = profile == .focused ? focusedClusterKeys : homeClusterKeys
-        let clusterLinks = profile == .focused ? [] : homeClusterLinks
-        let categories = profile == .focused
-            ? coreCategories.filter { $0.pageKey == "body_health" }
-            : coreCategories
+                         chrome: ChromeBundle = .none) -> GeneratedScene {
+        let clusterKeys = chrome.clusterKeys
+        let clusterLinks = chrome.clusterLinks
+        let categories = chrome.categories
 
         // Keys we supply ourselves — never carried over from the model's tiles.
-        // Reserve the full superset regardless of profile so topical extraction
-        // is stable when a scene's profile changes.
+        // Reserve the full superset regardless of which bundle was chosen, so
+        // that "what is this scene's own content" gives the same answer whatever
+        // chrome is on it. Refinement reads that answer.
         var reserved = structuralNavKeys
             .union(coreCategories.map(\.pageKey))
             .union(homeClusterKeys)
@@ -134,6 +200,8 @@ enum SceneNavigation {
                                              displayName: tile.displayName, wordClass: tile.wordClass))
             }
         }
+        // An empty topical set is only meaningful when there is chrome to wrap
+        // around it; with none there is nothing to build and the scene stands.
         guard !topical.isEmpty else { return scene }
 
         let pageKeys = scene.pages.map(\.key)

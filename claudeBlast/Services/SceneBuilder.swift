@@ -75,7 +75,7 @@ enum SceneBuilder {
                     guard lookup[genTile.key] != nil else { return nil }
                     return TileEntry(key: genTile.key, link: genTile.link, isAudible: genTile.isAudible)
                 }
-                return PageSpec(key: genPage.key, tiles: tiles)
+                return PageSpec(key: genPage.key, displayName: genPage.displayName, tiles: tiles)
             }
 
             scene.ensureIdentity(authorID: DeviceProfileStore.ensureAuthorID(context: context),
@@ -117,7 +117,7 @@ enum SceneBuilder {
                     guard lookup[genTile.key] != nil else { return nil }
                     return TileEntry(key: genTile.key, link: genTile.link, isAudible: genTile.isAudible)
                 }
-                return PageSpec(key: genPage.key, tiles: tiles)
+                return PageSpec(key: genPage.key, displayName: genPage.displayName, tiles: tiles)
             }
             scene.homePageKey = generated.homePageKey
         }

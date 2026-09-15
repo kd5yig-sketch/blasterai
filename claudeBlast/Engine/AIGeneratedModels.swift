@@ -115,6 +115,31 @@ struct GeneratedPage: Codable {
     let key: String
     /// `var` so the page preview can prune/reorder before Accept.
     var tiles: [GeneratedTile]
+    /// What to call the page, when the key's title-cased form isn't good enough
+    /// ("Body & Health" for `body_health`). Empty means "derive from the key",
+    /// matching `PageSpec.displayName`. The model never sets this — the
+    /// structure step does, for the pages it builds.
+    var displayName: String = ""
+
+    init(key: String, tiles: [GeneratedTile], displayName: String = "") {
+        self.key = key
+        self.tiles = tiles
+        self.displayName = displayName
+    }
+}
+
+extension GeneratedPage {
+    private enum CodingKeys: String, CodingKey { case key, tiles, displayName }
+
+    /// Hand-written for the same reason `PageSpec`'s is: Swift's synthesized
+    /// decoder throws on a missing non-optional rather than using the property's
+    /// default, so model JSON — which has no `displayName` — would fail to decode.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(key: try c.decode(String.self, forKey: .key),
+                  tiles: try c.decodeIfPresent([GeneratedTile].self, forKey: .tiles) ?? [],
+                  displayName: try c.decodeIfPresent(String.self, forKey: .displayName) ?? "")
+    }
 }
 
 /// A full scene suggested by AI.
@@ -122,8 +147,11 @@ struct GeneratedScene: Codable {
     let name: String
     let description: String
     /// Must match the key of one of the pages below.
-    let homePageKey: String
-    let pages: [GeneratedPage]
+    /// `var` so the structure step can re-point it when a scene arrives with no
+    /// usable home page.
+    var homePageKey: String
+    /// `var` so the structure step can append pages before the scene is built.
+    var pages: [GeneratedPage]
     /// New words declared by the AI (decoded from the raw response). nil on the
     /// sanitized scene returned to callers — by then the metadata lives on the
     /// individual tiles.
@@ -131,18 +159,22 @@ struct GeneratedScene: Codable {
     /// Total tokens billed for this generation, attached by SceneGeneratorService
     /// after parsing the response. Optional → absent in model JSON decodes to nil.
     var tokenUsage: Int? = nil
-    /// The raw model JSON this scene was parsed from. Retained so the preview can
-    /// re-scaffold the same content at a different profile (focused ⇄ full) with
-    /// no extra API call. nil on cached-starter scenes.
+    /// The raw model JSON this scene was parsed from. Retained so the preview
+    /// can re-apply a different chrome bundle to the same content with no extra
+    /// API call. nil on cached-starter scenes.
     var rawContent: String? = nil
 }
 
 extension GeneratedScene {
     /// Decode a model's JSON content into a sanitized, scaffolded scene. Shared
     /// by SceneGeneratorService and SceneRefinerService: strips surrounding prose,
-    /// drops hallucinated tile keys, admits declared new words, then hands off to
-    /// SceneNavigation.scaffold to build the familiar core board around the
-    /// topical tiles. Throws OpenAIError.decodingError on unusable output.
+    /// drops hallucinated tile keys, and admits declared new words. Throws
+    /// OpenAIError.decodingError on unusable output.
+    ///
+    /// **Nothing is added by default.** `chrome` is `.none` unless a caller asks
+    /// otherwise, so what comes back is the scene the model actually produced.
+    /// Core words and category pages are a separate, explicit choice made in the
+    /// structure step — see `SceneNavigation.ChromeBundle`.
     ///
     /// `extraNewWords` carries new words that already exist on the scene being
     /// refined but aren't in base vocabulary yet (an un-accepted preview's
@@ -150,7 +182,7 @@ extension GeneratedScene {
     /// the model references them by key without re-declaring them.
     static func parse(content: String, allTiles: [TileModel],
                       extraNewWords: [GeneratedNewWord] = [],
-                      profile: SceneNavigation.Profile = .full) throws -> GeneratedScene {
+                      chrome: SceneNavigation.ChromeBundle = .none) throws -> GeneratedScene {
         let validKeys = Set(allTiles.map(\.key))
 
         let jsonText: String
@@ -192,7 +224,7 @@ extension GeneratedScene {
             homePageKey: homeKey,
             pages: sanitizedPages
         )
-        var result = SceneNavigation.scaffold(scene, allTiles: allTiles, validKeys: validKeys, profile: profile)
+        var result = SceneNavigation.scaffold(scene, allTiles: allTiles, validKeys: validKeys, chrome: chrome)
         result.rawContent = content
         return result
     }

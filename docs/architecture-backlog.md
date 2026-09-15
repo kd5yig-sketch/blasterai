@@ -313,5 +313,44 @@ clinicians in the TestFlight group, this moves up.
 
 ---
 
+## The core word sets are code, and nowhere you can filter by
+
+**Raised 2026-09-15, finishing the scene structure step.** Mark, on the tile
+picker: *"it would be interesting to be able to filter the view to the words
+that we consider to be in the min-core and full core sets. We could do this very
+easily I suppose by declaring these sets as vocab packs?"*
+
+The filter is worth having. The picker can already narrow by word class, but
+"the words we consider core" is the cut a therapist actually wants, and it is
+the one cut the picker cannot make.
+
+**Not as vocabulary packs, though.** A `VocabPack` is defined as vocabulary that
+*extends* the base — `PackInstaller.install` inserts the words it is missing.
+Core words are already in base vocabulary, so a core "pack" would install
+nothing, and it would then appear in the structure step's *"Add pages from
+vocabulary packs"* list, where picking it makes a whole separate page. Min-core
+would be offered twice, in two meanings, one of them wrong. It would also
+inherit
+[the pack-visibility bug](#a-vocabulary-pack-is-invisible-until-you-have-already-used-it).
+
+**Shape of the fix.** The sets exist today as `fileprivate` Swift arrays in
+`SceneNavigation` — `minCoreClusterKeys` and `homeClusterKeys` — read only by
+`ChromeBundle`. Lift them into a JSON resource beside `vocabulary.json` and have
+both `ChromeBundle` and a new picker filter read *that*, so there is one source
+of truth rather than a picker list that can drift from what the structure step
+actually adds. Then the picker gets Min-core / Full-core chips alongside the
+word-class ones.
+
+Worth doing for a second reason: it turns the core sets from code into data,
+which is what localization will need. Keys are language-neutral concept ids, so
+a localized build changes display names and keeps the sets — but only if the
+sets are a file someone can ship rather than a literal in a Swift enum.
+
+**Scheduled after the image cleanup** (Mark, 2026-09-15). Deliberately kept out
+of the scene-structure PR: it changes `SceneNavigation`'s source of truth and
+touches the picker, neither of which that PR needed to.
+
+---
+
 *Add new cross-cutting items here as stubs; promote to a dedicated note + worktree
 when scheduled.*

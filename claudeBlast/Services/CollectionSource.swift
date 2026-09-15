@@ -9,8 +9,9 @@
 //  separate inline code paths; this collapses tile production into one place.
 //  Each source resolves to a `Built` (tiles + a suggested page name + a cover
 //  image); the caller uniquifies the key, appends the page, and mints the nav
-//  link (see `SceneEditorView.commitBuilt`). AI generation is NOT a source — it
-//  produces its own multi-page `GeneratedPageResult` and keeps its own path.
+//  link (see `SceneEditorView.commitBuilt`, and `SceneStructure.build` for the
+//  many-sources-at-once case). AI generation is NOT a source — it produces its
+//  own multi-page `GeneratedPageResult` and keeps its own path.
 //
 
 import Foundation
@@ -92,58 +93,6 @@ enum CollectionSource {
             return Built(baseKey: TileModel.normalizeKey(name), displayName: name,
                          tiles: tiles, cover: .key(tiles.first?.key))
         }
-    }
-
-    /// Assemble a whole scene from several sources at once: one topic page per
-    /// source, plus a generated **home page** whose tiles are silent nav links to
-    /// each topic page. Installs any pack words, mints each page's link tile (with
-    /// that source's cover), and inserts the scene. Returns nil if no source
-    /// yields tiles. The caller saves. (This is the "New Scene from Collections"
-    /// builder — the AI generator remains its own path.)
-    static func buildScene(name: String,
-                           sources: [CollectionSource],
-                           into context: ModelContext,
-                           allTiles: [TileModel],
-                           existing: [String: TileModel]) -> BlasterScene? {
-        var lookup = existing
-        var usedKeys = Set<String>()
-        func uniqueKey(_ raw: String) -> String {
-            let base = raw.isEmpty ? "page" : raw
-            var key = base
-            var n = 2
-            while usedKeys.contains(key) { key = "\(base)_\(n)"; n += 1 }
-            usedKeys.insert(key)
-            return key
-        }
-
-        var topicPages: [PageSpec] = []
-        var homeLinks: [TileEntry] = []
-        for source in sources {
-            guard let built = build(source, into: context, allTiles: allTiles, existing: lookup) else { continue }
-            let pageKey = uniqueKey(TileModel.normalizeKey(built.baseKey))
-            topicPages.append(PageSpec(key: pageKey, tiles: built.tiles))
-            let linkTile: TileModel
-            switch built.cover {
-            case .data(let data):
-                linkTile = PageLink.mint(pageKey: pageKey, displayName: built.displayName,
-                                         image: data, context: context, existing: lookup)
-            case .key(let imageKey):
-                linkTile = PageLink.mint(pageKey: pageKey, displayName: built.displayName,
-                                         imageKey: imageKey, context: context, existing: lookup)
-            }
-            lookup[linkTile.key] = linkTile
-            homeLinks.append(TileEntry(key: linkTile.key, link: pageKey, isAudible: false))
-        }
-        guard !topicPages.isEmpty else { return nil }
-
-        let homeKey = uniqueKey("home")
-        let scene = BlasterScene(name: name, descriptionText: "",
-                                 homePageKey: homeKey, isDefault: false, isActive: false)
-        scene.pages = [PageSpec(key: homeKey, tiles: homeLinks)] + topicPages
-        scene.ensureIdentity(authorID: DeviceProfileStore.ensureAuthorID(context: context),
-                             authorName: DeviceProfileStore.authorName(context: context))
-        context.insert(scene)
-        return scene
     }
 
     /// Word tiles of `page` that exist in vocab and aren't structural (page-link /

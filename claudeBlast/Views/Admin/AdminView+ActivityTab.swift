@@ -15,6 +15,7 @@ extension AdminView {
                 // Activity-first: what the child actually said leads; AI usage,
                 // and cache diagnostics are secondary, below it.
                 activitySummarySection
+                authoringSection
                 recentActivitySection
                 activityLinksSection
                 aiUsageSection
@@ -24,11 +25,111 @@ extension AdminView {
                 developerSection
                 #endif
             }
+            // Every string on this tab is selectable. A caregiver reading it is
+            // usually about to reuse something — a prompt worth running again, a
+            // sentence going into session notes — and text you can read but not
+            // copy just makes them retype it.
+            .textSelection(.enabled)
             .navigationTitle("Activity")
             .toolbar { adminDoneToolbar }
             .sheet(isPresented: $showUsageReport) { UsageReportSheet() }
         }
         .tabItem { Label("Activity", systemImage: "list.bullet.rectangle.fill") }
+    }
+
+    // MARK: - Authoring history
+
+    /// How the boards on this device came to exist, newest first — and, when AI
+    /// wrote one, the words that asked for it.
+    ///
+    /// The text is selectable on purpose. A brief that worked is worth reusing,
+    /// and a prompt you can read but not copy makes you retype it. This is the
+    /// only place the wording is kept: it is deliberately **not** on the scene,
+    /// because a prompt is the likeliest place a child's name or diagnosis lands
+    /// and a scene syncs and gets shared. See `MetricEvent.detail`.
+    private var authoringEvents: [MetricEvent] {
+        allMetricEvents
+            .filter { $0.subjectType == AuthoringLog.Subject.scene.rawValue
+                   || $0.subjectType == AuthoringLog.Subject.page.rawValue }
+            .sorted { $0.timestamp > $1.timestamp }
+    }
+
+    @ViewBuilder
+    var authoringSection: some View {
+        let events = Array(authoringEvents.prefix(authoringRowLimit))
+        if !events.isEmpty {
+            Section {
+                ForEach(events, id: \.id) { event in
+                    authoringRow(event)
+                }
+            } header: {
+                Text("How these boards were made")
+            } footer: {
+                Text("Stays on this device — prompts are never synced and never travel inside a shared board. Select the text to reuse it, or tap the copy button.")
+            }
+        }
+    }
+
+    /// Enough to cover a working session without turning the tab into a log.
+    private var authoringRowLimit: Int { 12 }
+
+    @ViewBuilder
+    private func authoringRow(_ event: MetricEvent) -> some View {
+        let isScene = event.subjectType == AuthoringLog.Subject.scene.rawValue
+        let verb = event.eventType == .refined
+            ? "Refined"
+            : (event.isAuthoringRecord ? "Generated" : "Created")
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(spacing: 6) {
+                Image(systemName: isScene ? "square.grid.2x2.fill" : "doc.text.fill")
+                    .font(.caption2)
+                    .foregroundStyle(event.eventType == .refined ? Color.purple : Color.accentColor)
+                Text("\(verb) \(isScene ? "scene" : "page")")
+                    .font(.caption.weight(.semibold))
+                Text(authoringName(for: event))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                Spacer()
+                Text(event.timestamp, style: .date)
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                if event.isAuthoringRecord {
+                    // A button rather than a context menu: a `contextMenu` on the
+                    // row claims the long press, which is the gesture that starts
+                    // a text selection — so the menu and the selectable text
+                    // cancelled each other out. `.borderless` keeps the tap on the
+                    // button instead of the whole row.
+                    Button {
+                        UIPasteboard.general.string = event.detail
+                        copiedEventID = event.id
+                    } label: {
+                        Image(systemName: copiedEventID == event.id
+                              ? "checkmark" : "doc.on.doc")
+                            .font(.caption)
+                    }
+                    .buttonStyle(.borderless)
+                    .accessibilityLabel("Copy prompt")
+                }
+            }
+            if event.isAuthoringRecord {
+                Text(event.detail)
+                    .font(.callout)
+                    .italic()
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(.vertical, 2)
+    }
+
+    /// The scene's current name, or the key if it has been deleted since — the
+    /// log outlives what it describes.
+    private func authoringName(for event: MetricEvent) -> String {
+        if event.subjectType == AuthoringLog.Subject.scene.rawValue,
+           let scene = scenes.first(where: { $0.sceneID == event.subjectKey }) {
+            return scene.name
+        }
+        return PageNaming.displayName(event.subjectKey)
     }
 
     // MARK: - Activity summary (this week)
@@ -227,6 +328,7 @@ extension AdminView {
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
+                .textSelection(.enabled)
         }
         .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
     }

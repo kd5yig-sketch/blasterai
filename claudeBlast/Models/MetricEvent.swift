@@ -17,6 +17,9 @@ enum MetricType: String, Codable {
     case hit
     case flush
     case refreshed
+    /// An AI pass rewrote something that already existed — a scene or page
+    /// refine. Distinct from `.edited`, which is the caregiver's own hand.
+    case refined
 }
 
 /// Raw analytics event. **Device-local** — lives in the `DeviceLocal`
@@ -43,6 +46,29 @@ final class MetricEvent {
     var eventTypeRaw: String = MetricType.selected.rawValue
     var timestamp: Date = Date.now
 
+    /// Free text belonging to this event — in practice the prompt or refine
+    /// instruction that produced a scene or a page.
+    ///
+    /// ## Why authoring prompts live here rather than on the scene
+    ///
+    /// A prompt is the likeliest place a child's name, age, diagnosis or school
+    /// ends up, so it must not sync and must not travel inside a shared board.
+    /// This model is device-local by construction (`cloudKitDatabase: .none`),
+    /// which makes that a property of *where the text is kept* rather than a rule
+    /// every future export has to remember. A field on `BlasterScene` would have
+    /// had the opposite default: synced, and one `CodingKeys` line away from
+    /// riding along in a shared file.
+    ///
+    /// Treat it as content, exactly like `subjectKey`: never in an aggregate
+    /// export. See `StorageExport`.
+    var detail: String = ""
+
+    /// Rows carrying `detail` are the history, not the volume — the whole point
+    /// is the text, and a compaction that folded two refines into `count: 2`
+    /// would destroy both. `MetricCompactor.foldKey` puts `detail` in the key so
+    /// distinct text can never merge; this says why a reader should expect that.
+    var isAuthoringRecord: Bool { !detail.isEmpty }
+
     /// How many occurrences this row represents. Always 1 for a live event; a
     /// compaction pass can fold a time range of same-subject events into a single
     /// row with `count > 1` rather than deleting the history outright.
@@ -64,10 +90,12 @@ final class MetricEvent {
     }
 
     init(subjectType: String, subjectKey: String, eventType: MetricType,
-         count: Int = 1, timestamp: Date = .now, periodEnd: Date? = nil) {
+         detail: String = "", count: Int = 1, timestamp: Date = .now,
+         periodEnd: Date? = nil) {
         self.subjectType = subjectType
         self.subjectKey = subjectKey
         self.eventTypeRaw = eventType.rawValue
+        self.detail = detail
         self.count = count
         self.timestamp = timestamp
         self.periodEnd = periodEnd

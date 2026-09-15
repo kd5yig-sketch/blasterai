@@ -29,7 +29,7 @@ struct SceneRefinerService {
     func refine(instruction: String,
                 currentTopical: [GeneratedTile],
                 allTiles: [TileModel],
-                profile: SceneNavigation.Profile = .full) async throws -> GeneratedScene {
+                chrome: SceneNavigation.ChromeBundle = .none) async throws -> GeneratedScene {
         guard !apiKey.isEmpty else { throw OpenAIError.missingAPIKey }
 
         let system = buildSystemPrompt(currentTopical: currentTopical)
@@ -76,7 +76,7 @@ struct SceneRefinerService {
             return GeneratedNewWord(key: tile.key, displayName: displayName, wordClass: wordClass)
         }
         return try GeneratedScene.parse(content: content, allTiles: allTiles,
-                                        extraNewWords: carryOver, profile: profile)
+                                        extraNewWords: carryOver, chrome: chrome)
     }
 
     // MARK: - Prompt builders

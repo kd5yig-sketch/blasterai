@@ -26,6 +26,7 @@ struct CacheDetailView: View {
                         .foregroundStyle(.secondary)
                     Text(entry.sentence)
                         .font(.subheadline)
+                        .textSelection(.enabled)
                     Text("Hits: \(entry.hitCount)")
                         .font(.caption2)
                         .foregroundStyle(.tertiary)

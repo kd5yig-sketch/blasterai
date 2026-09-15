@@ -146,8 +146,10 @@ were fixed while the rename was in flight and kept after the revert:
 
 - `AboutStatsView` — `Section("Boards")` over scene and page counts is now
   `Section("Content")`.
-- `SceneEditorView` — `Section("Board")` around the Focused toggle is now
-  **"Focused layout"**, which describes the toggle rather than the container.
+- `SceneEditorView` — `Section("Board")` around the Focused toggle became
+  **"Focused layout"**, naming the toggle rather than the container. The toggle
+  itself has since been replaced by the structure step, and the section is now
+  **"Structure"** — same principle, name the thing it does.
 
 ### Site alignment
 
