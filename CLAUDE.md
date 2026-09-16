@@ -67,6 +67,15 @@ Feature work is collaborator-driven via a fresh Claude session. The collaborator
 - **Starting work.** A feature begins with the collaborator launching Claude in `~/src/blasterai`, on `main`, in a fresh session. Plan mode is the default for non-trivial features — write the plan, get approval, then execute.
 - **Worktrees.** Use `EnterWorktree` to create the branch + checkout (placed under `.claude/worktrees/`). Prefer a descriptive name like `cb-<short-feature>`. Never switch branches in the main checkout. Never run `git checkout -b` or `git switch -c`.
 - **Xcode.** When the collaborator wants to run the app, drive previews, or use the simulator against the in-progress branch, run `open claudeBlast.xcodeproj` from inside the worktree directory (`Bash(open:*)` is allowed). That opens the worktree's checkout, not main.
+- **Before every PR, and before closing a session: check tile-set drift.** Run
+  `python3 tools/check_tileset_drift.py`. It exits non-zero when a master in
+  `tools/tile_sets/` is newer than the `.heic` the app actually ships, which is
+  invisible in `git status` — the two are different files and nothing links them.
+  This shipped blond hair on dark skin for two days in September 2026, and was
+  caught by luck rather than by looking. **Drift must be intentional, not
+  accidental**: if the check fails, either sync (`optimize_tiles.py` then
+  `sync_to_app.py`, per set) or say in the PR why the master is deliberately
+  ahead.
 - **Commits and PRs are Claude's job.** Claude stages specific files, commits, pushes (`git push -u origin <branch>`), and opens the PR via `gh pr create`. Always confirm with the collaborator before the first push and before `gh pr create`. Never `git add -A`. Never force-push without explicit instruction. Never push to `main` directly from a worktree.
 - **PR iteration.** On review comments, read with `gh pr view --comments`, apply fixes in the same worktree, commit, push — the existing PR updates.
 - **Cleanup after merge.** When the collaborator says "PR merged, clean up", run `ExitWorktree action: "remove"` (deletes worktree + branch), then `git pull` on `main`. Don't run cleanup proactively — wait for the collaborator's signal.
