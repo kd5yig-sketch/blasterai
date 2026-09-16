@@ -132,29 +132,28 @@ struct SceneStructureTests {
 
     // MARK: - Core words
 
-    @Test func fullCoreAddsClusterWordsAndCategoryPages() throws {
+    /// A bundle places words and brings no pages. "Full core board" used to do
+    /// both, which is the coupling the structure step exists to undo — pages are
+    /// ticked separately, each with its own link tile.
+    @Test func aCoreStripAddsWordsAndNoPages() throws {
         let ctx = try makeContext()
         for key in ["i", "you", "want", "help", "yes", "no"] { tile(key, "social", into: ctx) }
-        tile("eat", "actions", into: ctx)
-        tile("drink", "actions", into: ctx)
+        tile("go", "actions", into: ctx)
         tile("pizza", "food", into: ctx)
-        tile("milk", "drinks", into: ctx)
         tile("mom", "people", into: ctx)
         try? ctx.save()
 
         var plan = SceneStructurePlan()
-        plan.chrome = .fullCore
+        plan.chrome = .core
         let result = try build(plan, in: ctx)
 
-        let pageKeys = Set(result.pages.map(\.key))
-        #expect(pageKeys.contains("food") && pageKeys.contains("drinks") && pageKeys.contains("people"))
-        let coreWords = result.homeAdditions.filter { $0.link.isEmpty }.map(\.key)
-        #expect(coreWords.contains("i") && coreWords.contains("want"))
-        // eat is an audible tile that ALSO navigates — the food page it points at
-        // has to be one this run actually built.
-        let eat = result.homeAdditions.first { $0.key == "eat" }
-        #expect(eat?.isAudible == true)
-        #expect(eat?.link == "food")
+        #expect(result.pages.isEmpty)
+        // Every addition is a plain word: no navigation, no page behind it.
+        #expect(result.homeAdditions.allSatisfy { $0.link.isEmpty && $0.isAudible })
+        let added = result.homeAdditions.map(\.key)
+        #expect(added.contains("i") && added.contains("want") && added.contains("go"))
+        // A food page is a separate tick, so no food word rode along.
+        #expect(!added.contains("pizza"))
     }
 
     @Test func coreWordsAlreadyOnTheHomePageAreNotDuplicated() throws {
@@ -163,7 +162,7 @@ struct SceneStructureTests {
         try? ctx.save()
 
         var plan = SceneStructurePlan()
-        plan.chrome = .minCore
+        plan.chrome = .core
         let result = try build(plan, in: ctx, homeTileKeys: ["i", "want"])
         let added = result.homeAdditions.map(\.key)
         #expect(!added.contains("i") && !added.contains("want"))
@@ -220,7 +219,7 @@ struct SceneStructureTests {
         try? ctx.save()
 
         var plan = SceneStructurePlan()
-        plan.chrome = .fullCore
+        plan.chrome = .core
         plan.packIDs = [pack.id]
         plan.wordClasses = ["actions"]
         plan.donorPages = [SceneStructurePlan.donorToken(sceneID: donor.sceneID, pageKey: "snacks")]
@@ -253,7 +252,7 @@ struct SceneStructureTests {
         let before = (try ctx.fetch(FetchDescriptor<TileModel>())).count
 
         var plan = SceneStructurePlan()
-        plan.chrome = .fullCore
+        plan.chrome = .core
         plan.packIDs = [pack.id]
         plan.wordClasses = ["actions"]
         _ = try outline(plan, in: ctx, packs: [pack])

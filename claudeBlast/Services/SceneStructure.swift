@@ -134,10 +134,6 @@ enum SceneStructure {
         // Nav links are collected apart from the pages so they can sort *after*
         // the core strip on the home page — the order the old scaffolder used.
         var navLinks: [TileEntry] = []
-        // Declared category page key -> the key it actually got, so the core
-        // strip's eat→food / drink→drinks links point at the real page even when
-        // the scene already had a page called "food" and ours was uniquified.
-        var categoryPageKeys: [String: String] = [:]
 
         /// Build one collection into a page and remember its nav link. Returns
         /// the key the page actually got, or nil if the source yielded nothing.
@@ -193,32 +189,16 @@ enum SceneStructure {
             }
         }
 
-        // 4. The chrome bundle's own category pages, built through the same
-        //    CollectionSource path as everything else so they obey the same
-        //    never-replace rule. A page whose key the scene already uses is
-        //    skipped: the caregiver has one, and ours is not better.
-        for category in plan.chrome.categoryPageClasses {
-            guard !takenPageKeys.contains(category.pageKey) else {
-                categoryPageKeys[category.pageKey] = category.pageKey
-                continue
-            }
-            categoryPageKeys[category.pageKey] = add(.wordClass(classes: category.wordClasses))
-        }
-
-        // 5. The core strip. Last, so its links can see the pages this run added.
+        // 4. The chosen word strip.
+        //
+        // Words only. A bundle used to bring category pages with it, which meant
+        // one control quietly made two decisions; pages are ticked above, each
+        // with its own link. See `SceneNavigation.ChromeBundle`.
         var present = homeTileKeys
         var core: [TileEntry] = []
         for key in plan.chrome.clusterKeys where lookup[key] != nil && !present.contains(key) {
             core.append(TileEntry(key: key, link: "", isAudible: true))
             present.insert(key)
-        }
-        for link in plan.chrome.clusterLinks
-        where lookup[link.key] != nil && !present.contains(link.key) {
-            // A tile that navigates nowhere is worse than no tile at all, so an
-            // eat/drink link is only offered when its page really exists.
-            guard let destination = categoryPageKeys[link.to] else { continue }
-            core.append(TileEntry(key: link.key, link: destination, isAudible: true))
-            present.insert(link.key)
         }
 
         result.homeAdditions = core + navLinks
@@ -240,7 +220,6 @@ enum SceneStructure {
         /// Keys a pack will have installed by the time the core strip is built —
         /// `build` re-reads the store after each addition, and this stands in.
         var reachable = vocabulary
-        var categoryAdded: Set<String> = []
 
         func add(title: String, baseKey: String, tileCount: Int) {
             guard tileCount > 0 else { return }
@@ -278,28 +257,10 @@ enum SceneStructure {
             }
         }
 
-        for category in plan.chrome.categoryPageClasses {
-            guard !takenPageKeys.contains(category.pageKey) else {
-                categoryAdded.insert(category.pageKey)
-                continue
-            }
-            let count = classCount(category.wordClasses)
-            if count > 0 { categoryAdded.insert(category.pageKey) }
-            add(title: category.wordClasses.map(\.capitalized).joined(separator: " & "),
-                baseKey: category.wordClasses.joined(separator: "_"),
-                tileCount: count)
-        }
-
         var present = homeTileKeys
         for key in plan.chrome.clusterKeys where reachable.contains(key) && !present.contains(key) {
             outline.homeWords.append(key)
             present.insert(key)
-        }
-        for link in plan.chrome.clusterLinks
-        where reachable.contains(link.key) && !present.contains(link.key)
-            && categoryAdded.contains(link.to) {
-            outline.homeWords.append(link.key)
-            present.insert(link.key)
         }
         return outline
     }

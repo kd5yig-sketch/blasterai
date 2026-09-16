@@ -46,12 +46,12 @@ struct SceneNavigationHomeTests {
             ])]
         )
 
-        // `.fullCore` explicitly: the default is now `.none`, which builds no
-        // category pages at all — and a scaffolder with nothing to build cannot
-        // demonstrate that it refrains from injecting home tiles. This test is
-        // about what the scaffolder does when it IS building structure.
+        // `.core` explicitly: the default is `.none`, which adds nothing at all,
+        // and a scaffolder with nothing to add cannot demonstrate that it
+        // refrains from injecting home tiles. This is about what it does when it
+        // IS placing words.
         let scaffolded = SceneNavigation.scaffold(raw, allTiles: allTiles, validKeys: validKeys,
-                                                  chrome: .fullCore)
+                                                  chrome: .core)
 
         let homeLinks = scaffolded.pages.flatMap { page in
             page.tiles.filter { $0.link == SceneNavigation.homeLinkToken }
@@ -63,34 +63,12 @@ struct SceneNavigationHomeTests {
         }
         #expect(homeKeyed.isEmpty)
 
-        // Sanity: the scaffolder still built category pages, so an empty result
-        // isn't what made the assertions above pass.
-        #expect(scaffolded.pages.count > 1)
+        // Sanity: the strip really was placed, so an empty result isn't what made
+        // the assertions above pass.
+        #expect(scaffolded.pages.first?.tiles.count ?? 0 > 2)
 
-        // And sibling cross-links survive — food ↔ drinks is a real shortcut
-        // between two topic pages, not a duplicate of a control we supply. This
-        // lives here rather than in its own test because `loadDefaultVocabulary`
-        // is hash-based: a second call in the same run is a no-op, leaving an
-        // empty store and a scaffolder with nothing to link. Sharing the one
-        // live bootstrap removes that ordering dependency.
-        let crossLinks = scaffolded.pages.flatMap { page in
-            page.tiles.filter { !$0.link.isEmpty && $0.link != SceneNavigation.homeLinkToken }
-        }
-        #expect(!crossLinks.isEmpty)
-
-        withExtendedLifetime(result) {}
     }
 
-    /// Generation supplies NOTHING but the scene's own tiles.
-    ///
-    /// This is the contract the structure step depends on. Scenes used to arrive
-    /// pre-wrapped in a core cluster and four category pages, which made a
-    /// generated scene impossible to reason about — you could not tell what the
-    /// model produced from what we had added — and the only control over it was
-    /// a toggle that rebuilt the scene and dropped every hand-made page.
-    ///
-    /// If this regresses, the structure sheet starts double-adding chrome the
-    /// scene already silently had.
     @Test func generationAddsNoChromeByDefault() throws {
         let container = try makeTestContainer()
         let ctx = container.mainContext
@@ -117,11 +95,18 @@ struct SceneNavigationHomeTests {
         // Nothing navigates anywhere, because there is nowhere to navigate to.
         #expect(bare.pages.allSatisfy { $0.tiles.allSatisfy { $0.link.isEmpty } })
 
-        // The same input WITH chrome is materially bigger — so the emptiness
+        // The same input WITH a strip is materially bigger — so the emptiness
         // above is the default doing its job, not the scaffolder failing.
+        //
+        // Still ONE page: a strip is words, never pages. "Full core board" used
+        // to bring four category pages along with its words, and that coupling
+        // is what the structure step replaced.
         let dressed = SceneNavigation.scaffold(raw, allTiles: allTiles, validKeys: validKeys,
-                                               chrome: .fullCore)
-        #expect(dressed.pages.count > bare.pages.count)
+                                               chrome: .core)
+        #expect(dressed.pages.count == 1)
+        let dressedKeys = Set(dressed.pages.flatMap { $0.tiles.map(\.key) })
+        #expect(dressedKeys.count > 2)
+        #expect(dressedKeys.isSuperset(of: ["crab", "starfish"]))
 
         withExtendedLifetime(result) {}
     }

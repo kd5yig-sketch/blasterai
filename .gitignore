@@ -77,6 +77,10 @@ Secrets.swift
 tools/tile_sets/encoding_review/
 tools/tile_sets/tone_review/
 tools/tile_sets/tone_inversions/
+tools/tile_sets/tone_chain_review/
+# The unshipped 4th tone: kept on disk as the floor the shipped tones stay
+# lighter than, untracked because 259 PNGs would want LFS.
+tools/tile_sets/classic_chain_dark/
 tools/tile_sets/cutsheet/
 tools/tile_sets/tone_cutsheet/
 # Exemplar / new-word experiments: evidence that runtime tone-matching works,
