@@ -235,42 +235,30 @@ asked about pixels instead of prompts.
 
 ---
 
-## A vocabulary pack is invisible until you have already used it
+## ~~A vocabulary pack is invisible until you have already used it~~ — DONE
 
-**Found 2026-09-13 while shooting the packs demo.** Mark wanted an empty page and
-Add Tiles to pull words from the bundled packs. The packs were not offered. The
-workaround was to add a whole pack *page* first, then Add Tiles could see those
-words, then delete the scaffolding page — his words: *"clutzy but it works."*
+**Shipped 2026-09-16.** `installedPacks` became `offeredPacks`: every pack the
+device has, adopted or not. *Availability is a property of the catalogue, not of
+the current board* — this entry's own framing, now a comment in
+`TilePickerView`. The build-a-page-then-delete-it workaround is gone.
 
-`TilePickerView.swift:73` is the cause:
+**The entry described half the bug.** It named the chip list, which was right,
+but `filteredTiles` filters `allTiles` — the **materialized** set. Offering every
+chip without touching that would have opened an *empty grid* for any pack nobody
+had adopted: a different confusing failure in place of the old one. So selecting
+a pack now installs its missing words through `PackInstaller` (idempotent), the
+same bargain `SceneStructure.build` already makes — a pack's words are vocabulary
+the family now has rather than scene content, so adopting them early costs
+nothing and leaves nothing broken behind.
 
-```swift
-return availablePacks.filter { pack in pack.words.contains { keys.contains($0.key) } }
-```
+`PackAvailabilityTests` pins the part that was actually wrong: packs are known
+with an **empty store**, installing materializes them, installing twice adds
+nothing, and pack words stay `isSystem` (shipped vocabulary arriving by another
+road, which the art pipeline and Vocab Manager both read).
 
-`keys` is `Set(allTiles.map(\.key))` — the **materialized** `TileModel` set. So a
-pack only appears once at least one of its words already exists on a board. A
-pack nobody has used yet filters itself out of the picker whose whole job is to
-let you use it. The filter is right for *user-authored* classes (do not offer a
-class with nothing in it) and exactly wrong for bundled content, which is known
-to exist whether or not it has been instantiated.
-
-**Same shape as [the art-styles bug](#a-new-word-can-only-ever-get-the-style-you-were-standing-on).**
-Both surfaces answer "what is available?" by looking at "what is already on a
-board". The scene editor cannot offer a style you are not standing in; the tile
-picker cannot offer a pack you have not already adopted. Worth fixing as one
-idea rather than two patches: *availability is a property of the catalogue, not
-of the current board.*
-
-**Shape of the fix.** Offer every pack in `availablePacks` unconditionally, and
-materialize a pack's words lazily when one is actually selected — the same
-`SceneBuilder.materializeNewWords` path `addNewWordInline` already uses. The
-"does anything exist yet" test stays where it belongs, on caregiver-authored
-word classes.
-
-Not a launch gate — every bundled pack is reachable by adding its page — but it
-is squarely in the path of the first thing a new caregiver tries, and the
-workaround requires knowing to create and then delete a page.
+The related half of "same shape as the art-styles bug" is also closed: Art
+Coverage (PR #78) made every generatable style visible from the scene editor
+rather than only the one you were standing in.
 
 ---
 
@@ -313,42 +301,57 @@ clinicians in the TestFlight group, this moves up.
 
 ---
 
-## The core word sets are code, and nowhere you can filter by
+## ~~The core word sets are code, and nowhere you can filter by~~ — DONE
 
-**Raised 2026-09-15, finishing the scene structure step.** Mark, on the tile
-picker: *"it would be interesting to be able to filter the view to the words
-that we consider to be in the min-core and full core sets. We could do this very
-easily I suppose by declaring these sets as vocab packs?"*
+**Shipped 2026-09-15, PR #79.** The sets moved to `Resources/core_sets.json`;
+`ChromeBundle` and the tile picker's filter chips read the same file. Not as
+vocabulary packs, for the reasons this entry gave.
 
-The filter is worth having. The picker can already narrow by word class, but
-"the words we consider core" is the cut a therapist actually wants, and it is
-the one cut the picker cannot make.
+Two things came out of it that the entry did not anticipate:
 
-**Not as vocabulary packs, though.** A `VocabPack` is defined as vocabulary that
-*extends* the base — `PackInstaller.install` inserts the words it is missing.
-Core words are already in base vocabulary, so a core "pack" would install
-nothing, and it would then appear in the structure step's *"Add pages from
-vocabulary packs"* list, where picking it makes a whole separate page. Min-core
-would be offered twice, in two meanings, one of them wrong. It would also
-inherit
-[the pack-visibility bug](#a-vocabulary-pack-is-invisible-until-you-have-already-used-it).
+- Asked where the word lists came from, the honest answer was **nowhere
+  recorded**. So every set now carries a `source`, and the loader drops one that
+  cannot answer. `docs/core-vocabulary-audit.md` measures us against four
+  published lists.
+- Measured against them, the old "min-core" offered **19% of Universal Core**,
+  and its signature words (`hungry`, `thirsty`, `bathroom`, `hurt`, `sick`,
+  `scared`, `tired`) appear on none of the four. The sets were renamed to say
+  what they are — *Basic needs & feelings* and *Core words* — and the latter is
+  now the overlap of those lists, at 83%.
 
-**Shape of the fix.** The sets exist today as `fileprivate` Swift arrays in
-`SceneNavigation` — `minCoreClusterKeys` and `homeClusterKeys` — read only by
-`ChromeBundle`. Lift them into a JSON resource beside `vocabulary.json` and have
-both `ChromeBundle` and a new picker filter read *that*, so there is one source
-of truth rather than a picker list that can drift from what the structure step
-actually adds. Then the picker gets Min-core / Full-core chips alongside the
-word-class ones.
+---
 
-Worth doing for a second reason: it turns the core sets from code into data,
-which is what localization will need. Keys are language-neutral concept ids, so
-a localized build changes display names and keeps the sets — but only if the
-sets are a file someone can ship rather than a literal in a Swift enum.
+## A board should grow by revealing, not by rearranging
 
-**Scheduled after the image cleanup** (Mark, 2026-09-15). Deliberately kept out
-of the scene-structure PR: it changes `SceneNavigation`'s source of truth and
-touches the picker, neither of which that PR needed to.
+**Raised 2026-09-15, reading CoughDrop's QuickCore 60.** Its home page is mostly
+*empty cells*, and its own header says why: *"the real value of the vocabulary
+set is in its consistent motor plan."* Around 2,000 words sit behind it, and the
+board grows by filling positions that were always there rather than by reflowing.
+
+We have the primitive already. `TileEntry.isConcealed` draws a cell empty and
+holds its place, for exactly the motor-planning reason — that is the argument
+written on the field itself, and the same one that pins Home to cell 0.
+
+**What is missing is position in the data.** A core set is an ordered list of
+keys, so the structure step appends them. Add *Basic needs & feelings* today and
+*Core words* next month and the second lands after the first — nothing already
+placed moves, which is good, but neither word ever had a *place*. Two children on
+the same set can have the same words in different cells, and a board that grows
+does not grow into a shape anyone planned.
+
+**Shape of the fix.** Give a core set optional slots — a grid index per word —
+and have `SceneStructure` place into them, filling the gaps with spacers
+(`TileEntry.spacer()` already exists). Then "add core words" means the same
+twelve positions on every board that uses it, and revealing a word later puts it
+where it always would have been.
+
+**Not small, and not obviously right yet.** It interacts with the grid's own
+paging (`tilesPerPage` is geometry-dependent, so a fixed slot is only fixed at a
+given tile size), with the page editor's reorder, and with what a caregiver sees
+when a scene's own words and a core set's slots collide. Worth putting in front
+of an SLP before building: the claim "position is the product" is the commercial
+systems' central one, and either we believe it enough to design for it or we
+should stop half-implementing it.
 
 ---
 
