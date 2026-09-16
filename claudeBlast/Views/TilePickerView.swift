@@ -67,14 +67,36 @@ struct TilePickerView: View {
         return ordered
     }
 
-    /// Packs with at least one installed word — worth a filter chip.
-    private var installedPacks: [VocabPack] {
-        let keys = Set(allTiles.map(\.key))
-        return availablePacks.filter { pack in pack.words.contains { keys.contains($0.key) } }
-    }
+    /// Every pack this device has, offered whether or not it has been used.
+    ///
+    /// This used to filter to packs with at least one **materialized** word, so a
+    /// pack nobody had adopted filtered itself out of the picker whose whole job
+    /// is to let you adopt it. The workaround was to build a pack *page*, use Add
+    /// Tiles, then delete the scaffolding page — Mark, 2026-09-13: *"clutzy but
+    /// it works."*
+    ///
+    /// The filter was right for caregiver-authored word classes (do not offer a
+    /// class with nothing in it) and exactly wrong for bundled content, which is
+    /// known to exist whether or not anyone has instantiated it. **Availability
+    /// is a property of the catalogue, not of the current board.**
+    private var offeredPacks: [VocabPack] { availablePacks }
 
     /// Bundled packs plus any this family has been sent.
     private var availablePacks: [VocabPack] { PackCatalog.available(in: modelContext) }
+
+    /// Materialize a pack's missing words so the grid can show them.
+    ///
+    /// `PackInstaller` is idempotent and marks pack words `isSystem = true` —
+    /// they are shipped vocabulary arriving by a different road, not words the
+    /// caregiver invented, and the distinction matters to the art pipeline and
+    /// to Vocab Manager.
+    private func install(_ pack: VocabPack) {
+        let existing = Dictionary(allTiles.map { ($0.key, $0) },
+                                  uniquingKeysWith: { first, _ in first })
+        guard PackInstaller.install(pack, context: modelContext, existing: existing) > 0
+        else { return }
+        try? modelContext.save()
+    }
 
     private func packKeys(_ slug: String) -> Set<String> {
         Set(availablePacks.first { $0.slug == slug }?.words.map(\.key) ?? [])
@@ -626,7 +648,7 @@ struct TilePickerView: View {
     /// (📦 + accent tint) so vocabulary packs are easy to spot and filter to.
     @ViewBuilder
     private var packFilter: some View {
-        if !installedPacks.isEmpty || !coreSets.isEmpty {
+        if !offeredPacks.isEmpty || !coreSets.isEmpty {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     // Core sets lead: they are the cut most often wanted, and
@@ -652,10 +674,20 @@ struct TilePickerView: View {
                         .buttonStyle(.plain)
                         .accessibilityHint(set.summary)
                     }
-                    ForEach(installedPacks) { pack in
+                    ForEach(offeredPacks) { pack in
                         let value = "pack:\(pack.slug)"
                         let isOn = selectedWordClass == value
                         Button {
+                            // Selecting a pack installs any of its words this
+                            // device does not have yet. Without this the chip
+                            // would open an empty grid: the grid filters
+                            // `allTiles`, which holds materialized tiles only.
+                            //
+                            // Idempotent, and the same bargain the structure step
+                            // makes — a pack's words are vocabulary the family now
+                            // has, not scene content, so adopting them early costs
+                            // nothing and leaves no broken state behind.
+                            if !isOn { install(pack) }
                             selectedWordClass = isOn ? "all" : value
                             clearPageSource()
                         } label: {
