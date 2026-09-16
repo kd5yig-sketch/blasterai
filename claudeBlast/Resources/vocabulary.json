@@ -265,6 +265,10 @@
     "wordClass": "places"
   },
   {
+    "key": "can",
+    "wordClass": "core"
+  },
+  {
     "key": "cards",
     "wordClass": "games"
   },

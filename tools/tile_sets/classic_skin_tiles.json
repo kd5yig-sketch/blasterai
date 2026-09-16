@@ -74,6 +74,7 @@
  "buy": true,
  "call": true,
  "camp": false,
+ "can": true,
  "car": false,
  "cards": true,
  "carrot": false,

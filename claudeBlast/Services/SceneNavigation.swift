@@ -46,59 +46,18 @@ enum SceneNavigation {
     /// and the model must not invent one either.
     private static let structuralNavKeys: Set<String> = ["next_page", "previous_page", "home"]
 
-    /// A familiar Core-First category page, rebuilt by word class. `crossLinks`
-    /// are sibling category pages it links to (mirrors core_first.json: the food
-    /// page links drinks and vice-versa).
-    fileprivate struct CoreCategory {
-        let pageKey: String
-        let iconKey: String
-        let wordClasses: Set<String>
-        let crossLinks: [String]
+    /// Every word any core set can put on a home page.
+    ///
+    /// **Data, not a literal** (`Resources/core_sets.json`). These used to be two
+    /// arrays here, read by `ChromeBundle` alone; the tile picker now offers the
+    /// same sets as filter chips, and two readers of one list must not be two
+    /// copies of it. The file also carries where each set came from — see
+    /// `CoreWordSets`.
+    fileprivate static var allCoreSetKeys: Set<String> {
+        CoreWordSets.all.reduce(into: Set<String>()) { $0.formUnion($1.keys) }
     }
 
-    /// The curated rich pages bundled into every generated scene — the ones the
-    /// child already knows. Mirrors core_first.json's food/drinks/people/
-    /// body_health page definitions.
-    fileprivate static let coreCategories: [CoreCategory] = [
-        CoreCategory(pageKey: "people", iconKey: "people",
-                     wordClasses: ["people"], crossLinks: []),
-        CoreCategory(pageKey: "food", iconKey: "food",
-                     wordClasses: ["food"], crossLinks: ["drinks"]),
-        CoreCategory(pageKey: "drinks", iconKey: "drinks",
-                     wordClasses: ["drinks"], crossLinks: ["food"]),
-        CoreCategory(pageKey: "body_health", iconKey: "body_health",
-                     wordClasses: ["body", "health"], crossLinks: []),
-    ]
-
-    /// The curated core cluster appended to the home page after the topical
-    /// tiles — the familiar high-frequency words from the Core-First home. Plain
-    /// audible tiles; `eat`/`drink` are added separately as audible links to the
-    /// food/drinks pages.
-    fileprivate static let homeClusterKeys: [String] = [
-        "i", "you", "me", "my", "he", "she", "we", "they", "teacher", "mom", "dad", "friend",
-        "help", "hungry", "thirsty", "bathroom",
-        "happy", "sad", "tired", "hurt", "sick", "scared",
-        "yes", "no", "more", "want", "please", "all_done", "look",
-    ]
-
-    /// Audible link tiles on the home page that both speak and navigate to a rich
-    /// page (mirrors Core-First's eat→food_drinks). (clusterKey, destinationPage).
-    fileprivate static let homeClusterLinks: [(key: String, to: String)] = [
-        ("eat", "food"),
-        ("drink", "drinks"),
-    ]
-
-    /// Lean cluster: a minimal needs strip with feelings and a couple of
-    /// pronouns. No eat/drink links — hungry/thirsty stand in for food & drink —
-    /// and only the body & health page comes with it.
-    fileprivate static let minCoreClusterKeys: [String] = [
-        "i", "you", "want",
-        "help", "more", "hungry", "thirsty", "bathroom",
-        "happy", "sad", "tired", "hurt", "sick", "scared",
-        "yes", "no", "all_done", "look",
-    ]
-
-    /// How much familiar core board to wrap around a scene's own tiles.
+    /// Which set of words, if any, the structure step puts on a home page.
     ///
     /// **`.none` is the default, and that is the point.** Generation used to
     /// inject a core cluster and four category pages silently, which made a
@@ -107,91 +66,84 @@ enum SceneNavigation {
     /// of it was a toggle that rebuilt the scene and dropped every page you had
     /// made yourself. Now nothing is added unless someone asks for it, and what
     /// they asked for is visible in the sheet that asked.
+    ///
+    /// ## Words only — pages are chosen separately
+    ///
+    /// There used to be a third case, "Full core board", which both put words on
+    /// the home page **and** brought the people / food / drinks / body-health
+    /// pages with it. That was the last place two decisions were still bundled
+    /// together, and the structure step already offers pages of its own, each
+    /// with its home-page link minted for it. So a bundle now means exactly one
+    /// thing: a strip of words. Wanting a Food page is a separate tick, and the
+    /// `eat`→food link it used to carry is better served by that page's own link
+    /// tile, which at least looks like a page link.
+    ///
+    /// ## Why two sets and not one
+    ///
+    /// They are genuinely different things, and the old naming hid it. **Core
+    /// words** are high-frequency and combinable — they work on any topic, which
+    /// is what the AAC literature means by the term. **Basic needs & feelings**
+    /// are states to report: useful, wanted, and on none of the four published
+    /// lists we checked. Calling the second one "min-core" oversold it to exactly
+    /// the reader who knows what core means.
     enum ChromeBundle: String, CaseIterable, Identifiable, Sendable {
         /// Just the scene's own tiles. Nothing supplied.
         case none
-        /// A needs strip — pronouns, help, feelings, yes/no — plus body & health.
-        case minCore
-        /// The familiar Core-First home: the full cluster, eat/drink links, and
-        /// the people / food / drinks / body & health pages.
-        case fullCore
+        /// How the child is doing and what they need — hungry, hurt, all done.
+        case needs
+        /// The words AAC research calls core: want, go, more, stop, not, same.
+        case core
 
         public var id: String { rawValue }
 
+        /// The set this bundle draws from, or nil for `.none`.
+        var wordSet: CoreWordSet? {
+            switch self {
+            case .none:  return nil
+            case .needs: return CoreWordSets.set(id: CoreWordSets.needsID)
+            case .core:  return CoreWordSets.set(id: CoreWordSets.coreID)
+            }
+        }
+
         var title: String {
             switch self {
-            case .none:     return "Nothing"
-            case .minCore:  return "Min-core"
-            case .fullCore: return "Full core board"
+            case .none:  return "Nothing"
+            case .needs: return wordSet?.displayName ?? "Basic needs & feelings"
+            case .core:  return wordSet?.displayName ?? "Core words"
             }
         }
 
         var summary: String {
             switch self {
             case .none:
-                return "Only the words this scene is about. Add pages and core words yourself."
-            case .minCore:
-                return "A short needs strip — i, you, want, help, feelings, yes/no — and a body & health page."
-            case .fullCore:
-                return "The familiar Core-First home page, plus people, food, drinks and body & health pages."
+                return "Only the words this scene is about. Add words and pages yourself."
+            default:
+                return wordSet?.summary ?? ""
             }
         }
 
         /// Home-page words this bundle appends after the scene's own tiles.
-        var clusterKeys: [String] {
-            switch self {
-            case .none:     return []
-            case .minCore:  return minCoreClusterKeys
-            case .fullCore: return homeClusterKeys
-            }
-        }
-
-        /// Audible home-page tiles that also navigate.
-        var clusterLinks: [(key: String, to: String)] {
-            self == .fullCore ? homeClusterLinks : []
-        }
-
-        /// The word classes behind this bundle's category pages, in page order.
-        /// Exposed so a caller can build those pages through the normal
-        /// `CollectionSource` path rather than reaching into the scaffolder.
-        var categoryPageClasses: [(pageKey: String, wordClasses: [String])] {
-            categories.map { ($0.pageKey, Array($0.wordClasses).sorted()) }
-        }
-
-        /// Category pages this bundle brings with it.
-        fileprivate var categories: [CoreCategory] {
-            switch self {
-            case .none:     return []
-            case .minCore:  return coreCategories.filter { $0.pageKey == "body_health" }
-            case .fullCore: return coreCategories
-            }
-        }
+        var clusterKeys: [String] { wordSet?.keys ?? [] }
     }
 
-    /// Build the canonical scene: a topical home page (topical tiles first, then
-    /// the familiar core cluster and category links) plus the bundled rich
-    /// category pages. Returns the original scene unchanged only if the model
-    /// produced no usable topical content.
+    /// Build the canonical scene: a topical home page, optionally followed by a
+    /// strip of core words. Returns the original scene unchanged only if the
+    /// model produced no usable topical content.
     ///
-    /// `allTiles` is the live vocabulary (used to fill category pages and confirm
-    /// keys exist); `validKeys` is its key set.
+    /// Pages are not this function's business any more — the structure step adds
+    /// them, each with its own link tile. `allTiles` is the live vocabulary;
+    /// `validKeys` is its key set, used to confirm a word exists before placing
+    /// a tile that would otherwise render a gap.
     static func scaffold(_ scene: GeneratedScene, allTiles: [TileModel], validKeys: Set<String>,
                          chrome: ChromeBundle = .none) -> GeneratedScene {
-        let clusterKeys = chrome.clusterKeys
-        let clusterLinks = chrome.clusterLinks
-        let categories = chrome.categories
-
         // Keys we supply ourselves — never carried over from the model's tiles.
-        // Reserve the full superset regardless of which bundle was chosen, so
-        // that "what is this scene's own content" gives the same answer whatever
-        // chrome is on it. Refinement reads that answer.
-        var reserved = structuralNavKeys
-            .union(coreCategories.map(\.pageKey))
-            .union(homeClusterKeys)
-            .union(homeClusterLinks.map(\.key))
+        // Reserve every core set's words regardless of which bundle was chosen,
+        // so "what is this scene's own content" gives the same answer whatever
+        // strip is on it. Refinement reads that answer.
+        var reserved = structuralNavKeys.union(allCoreSetKeys)
 
         // 1. Topical tiles: every model tile that isn't navigation or something
-        //    we provide via the core cluster, de-duplicated in first-seen order.
+        //    a core set provides, de-duplicated in first-seen order.
         var topical: [GeneratedTile] = []
         for page in scene.pages {
             for tile in page.tiles where !isStructuralNav(tile) && !reserved.contains(tile.key) {
@@ -200,61 +152,37 @@ enum SceneNavigation {
                                              displayName: tile.displayName, wordClass: tile.wordClass))
             }
         }
-        // An empty topical set is only meaningful when there is chrome to wrap
+        // An empty topical set is only meaningful when there is a strip to wrap
         // around it; with none there is nothing to build and the scene stands.
         guard !topical.isEmpty else { return scene }
 
         let pageKeys = scene.pages.map(\.key)
         let homeKey: String = pageKeys.contains(scene.homePageKey) ? scene.homePageKey : (pageKeys.first ?? "home")
 
-        // 2. Core cluster + category links for the home page.
+        // 2. The chosen strip, after the scene's own words.
         var homeTiles = topical
-        for key in clusterKeys where validKeys.contains(key) {
+        for key in chrome.clusterKeys where validKeys.contains(key) {
             homeTiles.append(GeneratedTile(key: key, isAudible: true, link: ""))
         }
-        for link in clusterLinks where validKeys.contains(link.key) {
-            homeTiles.append(GeneratedTile(key: link.key, isAudible: true, link: link.to))
-        }
 
-        // 3. Bundled category pages, and their links from the home page.
-        var categoryPages: [GeneratedPage] = []
-        for category in categories where category.pageKey != homeKey {
-            let contentTiles = allTiles
-                .filter { category.wordClasses.contains($0.wordClass) }
-                .map { GeneratedTile(key: $0.key, isAudible: true, link: "") }
-            guard !contentTiles.isEmpty else { continue }
-
-            // No home tile: `HomeGridCell` occupies cell 0 of every page, so an
-            // authored one would be a duplicate control costing a word slot.
-            var pageTiles: [GeneratedTile] = []
-            for sibling in category.crossLinks where sibling != homeKey {
-                pageTiles.append(GeneratedTile(key: sibling, isAudible: false, link: sibling))
-            }
-            pageTiles += contentTiles
-            categoryPages.append(GeneratedPage(key: category.pageKey, tiles: pageTiles))
-
-            let icon = validKeys.contains(category.iconKey) ? category.iconKey : category.pageKey
-            homeTiles.append(GeneratedTile(key: icon, isAudible: false, link: category.pageKey))
-        }
-
-        let homePage = GeneratedPage(key: homeKey, tiles: homeTiles)
         return GeneratedScene(
             name: scene.name,
             description: scene.description,
             homePageKey: homeKey,
-            pages: [homePage] + categoryPages,
+            pages: [GeneratedPage(key: homeKey, tiles: homeTiles)],
             newWords: scene.newWords
         )
     }
 
-    /// Keys this scaffolder injects itself — the core cluster, the eat/drink
-    /// links, the bundled category pages, and structural navigation. Everything
-    /// else on a scaffolded home page is topical.
+    /// Keys the app supplies itself — any core set's words, plus structural
+    /// navigation. Everything else on a home page is the scene's own content.
+    ///
+    /// Deliberately the union across *every* set rather than the one in use: a
+    /// scene that was given the needs strip and later the core words must give
+    /// the same answer to "what is this scene about", or a refine would treat
+    /// `hungry` as topical and rewrite around it.
     static var injectedKeys: Set<String> {
-        structuralNavKeys
-            .union(coreCategories.map(\.pageKey))
-            .union(homeClusterKeys)
-            .union(homeClusterLinks.map(\.key))
+        structuralNavKeys.union(allCoreSetKeys)
     }
 
     /// The topical tile keys of a scaffolded scene: the audible, unlinked tiles

@@ -1,0 +1,82 @@
+{
+  "_comment": "Core word sets. Data, not code — read by SceneNavigation.ChromeBundle (what the structure step puts on a home page) AND by the tile picker's filter chips, so the words a caregiver can filter to are the same words the app would add. Every set carries its own `source`: see CoreWordSets.swift for why that field is not optional, and docs/core-vocabulary-audit.md for how these compare to the published lists.",
+  "version": "2.0.0",
+  "sets": [
+    {
+      "id": "needs_feelings",
+      "displayName": "Basic needs & feelings",
+      "summary": "How the child is doing and what they need right now — hungry, thirsty, hurt, happy, sad.",
+      "source": {
+        "kind": "in_house",
+        "label": "BlasterAI, in-house",
+        "detail": "Chosen by us. NOT core vocabulary and deliberately not called that: none of these words appears on Universal Core, Banajee (2003), the PRC-Saltillo 100 or CoughDrop's QuickCore 60, because they are states to report rather than words that combine. That is a real and useful thing for a board to carry — it is simply a different thing from core.",
+        "citation": ""
+      },
+      "keys": [
+        "hungry",
+        "thirsty",
+        "bathroom",
+        "hurt",
+        "sick",
+        "tired",
+        "scared",
+        "happy",
+        "sad",
+        "help",
+        "more",
+        "all_done"
+      ]
+    },
+    {
+      "id": "core_words",
+      "displayName": "Core words",
+      "summary": "High-frequency words that combine and work on any topic — the words AAC research calls core.",
+      "source": {
+        "kind": "consensus",
+        "label": "Consensus of four published core lists",
+        "detail": "Every word here appears on at least three of four independently published core-vocabulary lists, and the pronouns on at least two. Taken as an overlap — a fact about where those lists agree — not copied from any one of them. Verified 2026-09-15; see docs/core-vocabulary-audit.md for the full comparison, gaps and licence position.",
+        "citation": "Universal Core, Center for Literacy and Disability Studies, UNC-Chapel Hill (CC BY-SA 4.0) · Banajee, DiCarlo & Buras Stricklin (2003), Augmentative and Alternative Communication 19(2), 67–73 · PRC-Saltillo, 100 Frequently Used Core Words · CoughDrop QuickCore 60"
+      },
+      "keys": [
+        "i",
+        "you",
+        "me",
+        "my",
+        "he",
+        "she",
+        "we",
+        "they",
+        "it",
+        "want",
+        "can",
+        "go",
+        "help",
+        "look",
+        "like",
+        "make",
+        "put",
+        "get",
+        "do",
+        "stop",
+        "open",
+        "more",
+        "all",
+        "some",
+        "good",
+        "not",
+        "different",
+        "same",
+        "in",
+        "on",
+        "off",
+        "up",
+        "here",
+        "that",
+        "what",
+        "yes",
+        "no",
+        "all_done"
+      ]
+    }
+  ]
+}

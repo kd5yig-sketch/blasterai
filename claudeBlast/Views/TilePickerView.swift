@@ -80,12 +80,31 @@ struct TilePickerView: View {
         Set(availablePacks.first { $0.slug == slug }?.words.map(\.key) ?? [])
     }
 
+    /// Core sets worth a chip: those with at least one word in this vocabulary.
+    ///
+    /// "The words we consider core" is the cut a therapist actually wants and the
+    /// one cut this picker could not make — word class is the wrong axis for it,
+    /// because core vocabulary is spread across pronouns, verbs, feelings and
+    /// social words by definition.
+    private var coreSets: [CoreWordSet] {
+        let present = Set(allTiles.map(\.key))
+        return CoreWordSets.all.filter { set in set.keys.contains { present.contains($0) } }
+    }
+
+    private func coreKeys(_ id: String) -> Set<String> {
+        CoreWordSets.set(id: id)?.keySet ?? []
+    }
+
     private func classLabel(_ wc: String) -> String {
         if wc == "all" { return "All" }
         if wc == PageLink.wordClass { return "Page Links" }
         if wc.hasPrefix("pack:") {
             let slug = String(wc.dropFirst("pack:".count))
             return "📦 " + (availablePacks.first { $0.slug == slug }?.displayName ?? slug)
+        }
+        if wc.hasPrefix("core:") {
+            let id = String(wc.dropFirst("core:".count))
+            return CoreWordSets.set(id: id)?.displayName ?? id
         }
         return wc
     }
@@ -106,8 +125,13 @@ struct TilePickerView: View {
                 return tile
             }
         }
+        // A pack or a core set filters by an explicit key list rather than by
+        // word class; both resolve to the same shape, so the grid below needs
+        // one branch for "a named list of keys" and not one per kind.
         let packKeySet: Set<String>? = selectedWordClass.hasPrefix("pack:")
-            ? packKeys(String(selectedWordClass.dropFirst("pack:".count))) : nil
+            ? packKeys(String(selectedWordClass.dropFirst("pack:".count)))
+            : (selectedWordClass.hasPrefix("core:")
+               ? coreKeys(String(selectedWordClass.dropFirst("core:".count))) : nil)
         return allTiles.filter { tile in
             // Retired (hidden) words are never offered to add.
             if tile.isRetired { return false }
@@ -602,9 +626,32 @@ struct TilePickerView: View {
     /// (📦 + accent tint) so vocabulary packs are easy to spot and filter to.
     @ViewBuilder
     private var packFilter: some View {
-        if !installedPacks.isEmpty {
+        if !installedPacks.isEmpty || !coreSets.isEmpty {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
+                    // Core sets lead: they are the cut most often wanted, and
+                    // unlike a pack they are vocabulary every board already has.
+                    ForEach(coreSets) { set in
+                        let value = "core:\(set.id)"
+                        let isOn = selectedWordClass == value
+                        Button {
+                            selectedWordClass = isOn ? "all" : value
+                            clearPageSource()
+                        } label: {
+                            HStack(spacing: 5) {
+                                Image(systemName: "star.fill").font(.caption2)
+                                Text(set.displayName).font(.caption.weight(.semibold))
+                            }
+                            .padding(.horizontal, 13)
+                            .padding(.vertical, 7)
+                            .background(
+                                Capsule().fill(isOn ? Color.orange : Color.orange.opacity(0.15))
+                            )
+                            .foregroundStyle(isOn ? .white : Color.orange)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityHint(set.summary)
+                    }
                     ForEach(installedPacks) { pack in
                         let value = "pack:\(pack.slug)"
                         let isOn = selectedWordClass == value
