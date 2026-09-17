@@ -9,7 +9,20 @@ xcuserdata/
 *.xcscmblueprint
 # Xcode user-specific files / schemes that often contain secrets
 *.xccheckout
-xcshareddata/
+xcshareddata/WorkspaceSettings.xcsettings
+xcshareddata/IDEWorkspaceChecks.plist
+
+# The development scheme is where OPENAI_API_KEY is set (CLAUDE.md, "Override:
+# set OPENAI_API_KEY env var in scheme"), so it carries a live key in plain XML
+# and must never be committed.
+#
+# `xcshareddata/` used to be ignored wholesale for that reason, which was safe
+# and also meant **no** scheme was in git — so `xcodebuild -scheme` worked only
+# via Xcode's autocreate-schemes behaviour, on the machine that had run Xcode.
+# A release anyone else can reproduce needs a shared scheme, so the rule is now
+# per-scheme rather than per-directory: the retail scheme has no environment
+# variables and is tracked; this one never is.
+claudeBlast.xcodeproj/xcshareddata/xcschemes/claudeBlast.xcscheme
 
 # Build products
 build/
