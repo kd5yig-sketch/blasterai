@@ -54,6 +54,15 @@ struct claudeBlastApp: App {
         UserDefaults.standard.register(defaults: [AppSettingsKey.icloudEnabled: true])
         #endif
 
+        // Has this app ever run on this device before?
+        //
+        // Read **here**, before bootstrap, because bootstrap sets the flag — by
+        // the time the key handling further down runs, a fresh install looks
+        // exactly like an old one.
+        //
+        // UserDefaults goes when the app is deleted. The Keychain does not.
+        let hasRunHereBefore = UserDefaults.standard.bool(forKey: AppSettingsKey.bootstrapInstalled)
+
         // Return disk freed by a previous launch's compaction. This is the ONLY
         // moment it can happen: SQLite will not truncate a database file that
         // another connection has open, so it must precede the ModelContainer.
@@ -147,6 +156,33 @@ struct claudeBlastApp: App {
         // Move any prior UserDefaults-stored API key into the Keychain on
         // the first launch after upgrade. Idempotent; no-op on fresh installs.
         OpenAIKeyVault.migrateFromUserDefaultsIfNeeded()
+
+        // A fresh install must not inherit the last install's key.
+        //
+        // iOS deletes an app's container and its UserDefaults when the app is
+        // removed, but **not its Keychain items**. So a reinstall silently comes
+        // up holding whatever key was there before, and nothing on screen says
+        // so: onboarding's key field starts empty, so the caregiver is looking
+        // at a blank field while the vault is full.
+        //
+        // Found 2026-09-17: on a fresh install, tapping "Someone sent me a key
+        // file" in onboarding answered "this device already has a key". It did.
+        //
+        // The dialog was the small half. The real one is that an iPad passed to
+        // another child, or handed back by the therapist who lent it, keeps
+        // billing the previous family's OpenAI account — invisibly, because
+        // nothing in a fresh setup ever mentions a key that is already there.
+        // `AdminView+DeviceTab` names that exact handover as why Remove exists;
+        // it just could not help someone who had no idea there was anything to
+        // remove.
+        //
+        // Gated on a flag read before bootstrap, so an *upgrade* — where
+        // UserDefaults survives and the caregiver's key is theirs — is
+        // untouched. A genuinely first-ever install has nothing to clear and
+        // this is a no-op.
+        if OpenAIKeyVault.clearIfInherited(hasRunBefore: hasRunHereBefore) {
+            GiftedKeyRecord.clear()
+        }
 
         // Env var wins (consumed silently — env users get their key persisted to
         // the Keychain so standalone re-launches keep working), then Keychain,

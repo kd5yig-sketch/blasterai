@@ -59,6 +59,37 @@ enum OpenAIKeyVault {
         store.delete()
     }
 
+    /// Drop a key the previous install left behind.
+    ///
+    /// iOS deletes an app's container and its UserDefaults on removal, but
+    /// **not its Keychain items** — so a reinstall comes up already holding the
+    /// last install's key, with nothing on screen to say so. Onboarding's key
+    /// field starts empty, so a caregiver is looking at a blank field while the
+    /// vault is full.
+    ///
+    /// The visible symptom was small: "Someone sent me a key file" answering
+    /// "this device already has a key" on a fresh install. The real cost is that
+    /// an iPad passed to another child, or handed back by the therapist who lent
+    /// it, keeps billing the previous family's OpenAI account — invisibly,
+    /// because nothing in a fresh setup ever mentions a key that is already
+    /// there.
+    ///
+    /// `hasRunBefore` must be read **before bootstrap**, which sets the flag it
+    /// comes from. An upgrade keeps its UserDefaults, so it reports `true` and
+    /// the caregiver's own key is untouched.
+    ///
+    /// Returns whether anything was cleared.
+    @discardableResult
+    static func clearIfInherited(hasRunBefore: Bool,
+                                 store: SecretStore = defaultStore()) -> Bool {
+        guard !hasRunBefore else { return false }
+        // `store.read()`, not `currentKey`: an env var is supplied by whoever is
+        // launching the app right now and is not an inheritance.
+        guard let existing = store.read(),
+              !existing.trimmingCharacters(in: .whitespaces).isEmpty else { return false }
+        return store.delete()
+    }
+
     /// One-shot migration. Idempotent.
     ///
     /// Behavior:
