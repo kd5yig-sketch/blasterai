@@ -24,6 +24,20 @@ xcshareddata/IDEWorkspaceChecks.plist
 # variables and is tracked; this one never is.
 claudeBlast.xcodeproj/xcshareddata/xcschemes/claudeBlast.xcscheme
 
+# Claude Code working directories, inside the repo but not of it.
+#
+# `.claude/worktrees/` is where feature branches are checked out (CLAUDE.md,
+# "Worktrees"), so an open worktree made `git status` permanently dirty on main
+# — which `tools/preflight_release.py` correctly reported as "not ready to
+# archive". The check is right; these are simply not the repo's files.
+#
+# Deliberately not ignoring `.claude/` wholesale: a shared `settings.json` or
+# agent definition would be worth tracking, and only the personal and generated
+# parts are listed here.
+.claude/worktrees/
+.claude/plans/
+.claude/settings.local.json
+
 # Build products
 build/
 *.ipa
