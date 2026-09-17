@@ -1,0 +1,9 @@
+{
+  "@type": "application/vnd.claudeblast.giftedkey+json",
+  "_comment": "A Blaster API key for Golden Fixture, from Blaster Tests. The contents are obfuscated, not encrypted \u2014 treat this file as you would the key itself.",
+  "checksum": "72933f3b2b4dbe904021ae4fcea3a1a6451c3d5308e0b99eb80d16ddbcd62efc",
+  "label": "Golden Fixture",
+  "nonce": "AAECAwQFBgcICQoLDA0ODw==",
+  "payload": "x3Z5rPTipB65Y64txNoh1hNXxS/EVm1ZawEGE1ip5FvaWsdbsNeQfZWGNTCg7DgFTlQNI4GkecKZVOdyU7G170dGiTFePlV+29hB08JudTpjkV+GBGocVgvWGS1W0BwryrJgu6A2KuBCaljKW7rIR7X0Tx85dh9BANMSwUI9R7X44roEhXqEeSfCOZOR3qcjsDYwuuvcqjdO",
+  "version": "1.0.0"
+}
