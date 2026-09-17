@@ -369,7 +369,7 @@ struct AddWordSheet: View {
             displayName: trimmedName, wordClass: wordClass,
             plan: plan, detail: imageDetail, apiKey: apiKey)
 
-        for (set, image) in images {
+        for (set, image) in images.images {
             do {
                 let data = try TilePhotoProcessor.process(image)
                 generatedArt[set.rawValue] = data
@@ -381,10 +381,11 @@ struct AddWordSheet: View {
             }
         }
         if images.isEmpty {
-            photoError = "Couldn't generate an image."
-        } else if images.count < expected.count {
+            photoError = images.failureMessage ?? "Couldn't generate an image."
+        } else if images.images.count < expected.count {
             let missing = expected.filter { images[$0] == nil }.map(\.shortName)
-            photoError = "Couldn't generate: \(missing.joined(separator: ", "))."
+            let what = "Couldn't generate: \(missing.joined(separator: ", "))."
+            photoError = images.failureMessage.map { "\(what) \($0)" } ?? what
         }
         if photoPreview == nil, let first = generatedArt.values.first {
             photoPreview = UIImage(data: first)   // active set wasn't among the targets
@@ -408,7 +409,7 @@ struct AddWordSheet: View {
         } catch let err as TilePhotoProcessor.ProcessError {
             photoError = err.errorDescription
         } catch {
-            photoError = (error as? LocalizedError)?.errorDescription ?? "Couldn't refine the image."
+            photoError = OpenAIFailure.caregiverMessage(for: error)
         }
     }
 }

@@ -125,7 +125,7 @@ final class SentenceEngine {
         // with no key at all it would mean the mock inventing sentences nobody
         // asked for. Single-word is the honest behaviour in both cases, and it
         // is what a plain AAC device does.
-        if isKeyRejected || isMissingKey { return .singleWord }
+        if isKeyUnusable || isMissingKey { return .singleWord }
         return scriptedModeOverride ?? (profileResolver?.interactionMode ?? .sentence)
     }
 
@@ -152,8 +152,33 @@ final class SentenceEngine {
     /// to invented sentences.
     var isMissingKey = false
 
-    /// Clear the rejection — the caregiver has entered a different key.
-    func clearKeyRejection() { isKeyRejected = false }
+    /// Set when the key is valid but the money behind it has run out — a project
+    /// spend limit, or an account with no credit left.
+    ///
+    /// Separate from `isKeyRejected` because the two differ in every way that
+    /// matters to the person reading about them. A revoked key is never coming
+    /// back and needs a new one pasted in; an exhausted one is the same key,
+    /// working again the moment the limit is raised or the month turns over. A
+    /// caregiver told to "paste a new key" when the real answer is "add credit"
+    /// goes looking for a problem that does not exist.
+    ///
+    /// In memory for the same reason as `isKeyRejected`: a stale flag surviving
+    /// a relaunch would keep a topped-up key in the doghouse.
+    private(set) var isQuotaExhausted = false
+
+    /// The key cannot currently generate, for any reason.
+    ///
+    /// Both states force single-word mode and both are cleared by a new key, so
+    /// every site that cares only "can this device generate right now" reads
+    /// this rather than remembering to check two flags. The distinction lives in
+    /// the copy, not in the behaviour.
+    var isKeyUnusable: Bool { isKeyRejected || isQuotaExhausted }
+
+    /// Clear both refusal states — the caregiver has entered a different key.
+    func clearKeyRejection() {
+        isKeyRejected = false
+        isQuotaExhausted = false
+    }
 
     /// Whether a failure means *this key is finished* rather than *try again*.
     ///
@@ -162,19 +187,35 @@ final class SentenceEngine {
     /// reaching into that would compile to nothing and silently pass (see the
     /// note in CLAUDE.md).
     ///
-    /// 401 and 403 only. A 500 is OpenAI having a bad day and a timeout is the
-    /// train going into a tunnel; condemning the key for either would drop a
-    /// working device into fallback until it was relaunched.
+    /// Kept as a name for "the key is dead specifically", now that a 429 can
+    /// also stop a device. `OpenAIFailure.classify` is the full picture and the
+    /// thing to reach for; this asks one question of it.
     static func isKeyRejection(_ error: Error) -> Bool {
-        guard case OpenAIError.httpError(let status, _) = error else { return false }
-        return status == 401 || status == 403
+        OpenAIFailure.classify(error) == .rejected
     }
 
     /// Record a generation failure. Terminal ones latch; the rest are ignored.
+    ///
+    /// A capability refusal — a model this key may not call — deliberately does
+    /// nothing here. The key is healthy, and the only model this path uses is
+    /// the sentence model, so such a refusal means a misconfigured project
+    /// rather than a finished key. Latching it would strand the device on a
+    /// problem a caregiver cannot see or fix.
     func noteGenerationFailure(_ error: Error) {
-        guard Self.isKeyRejection(error) else { return }
-        isKeyRejected = true
-        Self.logger.error("generate: key rejected — falling back to single-word")
+        switch OpenAIFailure.classify(error) {
+        case .rejected:
+            isKeyRejected = true
+            Self.logger.error("generate: key rejected — falling back to single-word")
+        case .exhausted:
+            isQuotaExhausted = true
+            Self.logger.error("generate: key out of quota — falling back to single-word")
+        case .capability(let model):
+            Self.logger.error("generate: model unavailable to this key (\(model ?? "unnamed")) — not condemning the key")
+        case .requestRefused, .transient:
+            // Both are about this one request, not this key. Retrying is the
+            // caller's business; the device stays exactly as it was.
+            break
+        }
     }
 
     /// Idle debounce before auto-generation; backed by AppStorage.
@@ -1063,10 +1104,11 @@ final class SentenceEngine {
                 // user tapped to hear it — repeat the existing sentence unchanged
                 // so there's still audible feedback (just not louder/escalated).
                 if repetition > 0 { speak(sentence) }
-            } else if isKeyRejected, !tiles.isEmpty {
-                // The tap that discovered the key was dead still deserves an
-                // answer. Speak the words themselves rather than leaving the
-                // child with silence and a tray they have to clear by hand.
+            } else if isKeyUnusable, !tiles.isEmpty {
+                // The tap that discovered the key was dead — or out of credit —
+                // still deserves an answer. Speak the words themselves rather
+                // than leaving the child with silence and a tray they have to
+                // clear by hand.
                 speak(tiles.map(\.value).joined(separator: " "))
                 activeGroup.state = .unlockedEditable
             } else {

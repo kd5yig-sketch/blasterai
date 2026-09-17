@@ -888,7 +888,7 @@ struct TilePickerView: View {
                         + created.sorted().joined(separator: ", ")
                 }
             } catch {
-                suggestionError = error.localizedDescription
+                suggestionError = OpenAIFailure.caregiverMessage(for: error)
             }
             isSuggesting = false
         }

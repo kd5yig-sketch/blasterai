@@ -923,13 +923,8 @@ private struct PageGeneratorSheet: View {
                     }
                 }
 
-                if let error = generationError {
-                    Section {
-                        Text(error)
-                            .font(.caption)
-                            .foregroundStyle(.red)
-                    }
-                }
+                // (The error moved to the footer, beside Generate — see the note
+                // there. Rendering it in both places would say it twice.)
 
                 if apiKey.isEmpty {
                     Section {
@@ -943,6 +938,21 @@ private struct PageGeneratorSheet: View {
             Spacer(minLength: 0)
 
             VStack(spacing: 10) {
+                // The failure has to live next to the button that caused it.
+                //
+                // It was already being set and already being rendered — as a
+                // Section partway up a long scrolling Form, while Generate sits
+                // in this fixed footer. So on a full form the message was
+                // off-screen, and tapping Generate looked like tapping a dead
+                // button: still blue, still enabled, nothing happening.
+                if let error = generationError {
+                    Label(error, systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .transition(.opacity)
+                }
+
                 Button {
                     // Unedited vetted prompt → serve from cache (0 tokens); any
                     // edit runs the real generator.
@@ -1005,7 +1015,7 @@ private struct PageGeneratorSheet: View {
                                                         scenePages: pages, homePageKey: homeKey)
                 await MainActor.run { preview = result }
             } catch {
-                await MainActor.run { generationError = error.localizedDescription }
+                await MainActor.run { generationError = OpenAIFailure.caregiverMessage(for: error) }
             }
             await MainActor.run { isGenerating = false }
         }
@@ -1550,7 +1560,7 @@ private struct PageRefineInputSheet: View {
                                                        scenePages: scenePages, homePageKey: homePageKey)
                 await MainActor.run { onComplete(refined); dismiss() }
             } catch {
-                await MainActor.run { self.error = error.localizedDescription; isRefining = false }
+                await MainActor.run { self.error = OpenAIFailure.caregiverMessage(for: error); isRefining = false }
             }
         }
     }
@@ -1712,7 +1722,7 @@ private struct SceneRefinementSheet: View {
                 let result = try await service.refine(instruction: text, currentTopical: topical, allTiles: tiles)
                 await MainActor.run { preview = result }
             } catch {
-                await MainActor.run { errorMessage = error.localizedDescription }
+                await MainActor.run { errorMessage = OpenAIFailure.caregiverMessage(for: error) }
             }
             await MainActor.run { isRefining = false }
         }

@@ -72,7 +72,7 @@ enum TileArtCompletion {
     /// `work(completing:)`'s `missing` to tell those apart rather than assuming.
     @MainActor
     static func generate(completing style: TileStyle, for tile: TileModel,
-                         apiKey: String, resolver: TileImageResolver) async -> [ImageSetID: UIImage] {
+                         apiKey: String, resolver: TileImageResolver) async -> ArtResult {
         let existing = SceneImageBatch.existingArt(of: style, for: tile, resolver: resolver)
         guard existing.isEmpty else {
             return await TileImageGenerator.fillMissingVariants(
