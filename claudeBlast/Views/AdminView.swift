@@ -47,6 +47,12 @@ struct AdminView: View {
     // from the vault when the view is constructed; writes flow through
     // OpenAIKeyVault.setKey in the .onChange handler below.
     @State var apiKey: String = OpenAIKeyVault.currentKey() ?? ""
+    /// Provenance for the key above, when it arrived as a `.blasterkey` file.
+    ///
+    /// `@State` rather than read on every render, because the install happens in
+    /// a different sheet: re-seeded in the Device tab's `.onAppear` so opening
+    /// Admin after installing a gift shows it.
+    @State var giftedKey: GiftedKeyRecord? = GiftedKeyRecord.load()
     @AppStorage(AppSettingsKey.providerChoice) var providerChoice: String = "openai"
     @AppStorage(AppSettingsKey.audioEnabled) var audioEnabled: Bool = true
     @AppStorage(AppSettingsKey.tileSpeechEnabled) var tileSpeechEnabled: Bool = true
@@ -67,14 +73,33 @@ struct AdminView: View {
     #if DEBUG
     @AppStorage(AppSettingsKey.icloudEnabled) var icloudEnabled: Bool = false
     @State var showResetConfirmation = false
-    /// The usage-report share sheet, opened from the Activity tab. Declared here
-    /// because the tab lives in an extension and cannot hold its own state.
-    @State var showUsageReport = false
     @State var isResetting = false
     /// The iCloud value awaiting confirmation. Nil when nothing is pending —
     /// deliberately `Bool?` rather than a flag plus a value, because two
     /// separate pieces of state admit a combination that means nothing.
     @State var pendingICloud: Bool?
+
+    #if DEBUG
+    /// Outcome of the last CloudKit schema exercise — see CloudKitSchemaExerciser.
+    @State var schemaProbeResult: String?
+    #endif
+    #endif
+
+    // Shipping surfaces, deliberately outside the DEBUG block above.
+    //
+    // These three were inside it while being used unguarded by the Activity and
+    // Scenes tabs, so **the app did not compile in Release at all** — found
+    // 2026-09-17, the first time anything built that configuration. Nothing in
+    // the Debug workflow touches it: `xcodebuild build` and `test` both default
+    // to Debug, and only an Archive would have caught it, which is the step that
+    // produces build 1.
+    //
+    // The usage report and the activation notice are caregiver-facing features,
+    // not development affordances; they were never meant to be in there.
+
+    /// The usage-report share sheet, opened from the Activity tab. Declared here
+    /// because the tab lives in an extension and cannot hold its own state.
+    @State var showUsageReport = false
 
     /// What the last scene activation had to repair, warn about, or refuse.
     @State var activationNotice: ActivationNotice?
@@ -87,11 +112,6 @@ struct AdminView: View {
         let title: String
         let message: String
     }
-    #if DEBUG
-    /// Outcome of the last CloudKit schema exercise — see CloudKitSchemaExerciser.
-    @State var schemaProbeResult: String?
-    #endif
-    #endif
 
     @State var navigateToNewScene: BlasterScene?
     @State var isCreatingScene = false

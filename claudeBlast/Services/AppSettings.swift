@@ -57,6 +57,19 @@ enum AppSettingsKey {
     static let coverageBreakdown      = "coverage_breakdown"
     static let openaiApiKey      = "openai_api_key"
     static let providerChoice    = "provider_choice"
+    // Provenance for a key that arrived as a .blasterkey file. The secret itself
+    // is in the Keychain like any other; these say where it came from, so the
+    // Device tab can name it and the refusal banners can be written for someone
+    // holding a key they did not buy.
+    //
+    // Device-local UserDefaults rather than SwiftData on purpose: nothing here
+    // touches the synced schema, which is what lets the whole feature land
+    // before CloudKit promotion without interacting with gates 8 or 9.
+    static let giftedKeyLabel    = "gifted_key_label"
+    static let giftedKeyIssuer   = "gifted_key_issuer"
+    static let giftedKeyIssued   = "gifted_key_issued"
+    static let giftedKeyExpires  = "gifted_key_expires"
+    static let giftedKeyLastFour = "gifted_key_last_four"
     static let audioEnabled          = "audio_enabled"
     static let tileSpeechEnabled     = "tile_speech_enabled"
     static let speechVoiceIdentifier = "speech_voice_identifier"

@@ -62,7 +62,20 @@ enum ProviderSelection {
         }
         // An explicit choice of Mock is honoured even when a key exists. Someone
         // testing without spending money means it.
-        let choice = defaults.string(forKey: AppSettingsKey.providerChoice) ?? "openai"
+        //
+        // **Except in a shipping build, where Mock does not exist.** It is a
+        // development affordance — the eval harness and the load scripts run on
+        // it — and on a family's device it is a trap: choosing it sets
+        // `isMissingKey = false`, so sentence mode turns on and the child hears
+        // invented sentences that no model produced. Every other route to
+        // sentence mode requires a key that works, and this was the one hole in
+        // that rule. A value stored by a DEBUG build and carried forward is
+        // coerced here rather than trusted, because the RELEASE picker no longer
+        // offers a way to change it back.
+        var choice = defaults.string(forKey: AppSettingsKey.providerChoice) ?? "openai"
+        #if !DEBUG
+        choice = "openai"
+        #endif
         // `store.read()`, deliberately, not `OpenAIKeyVault.currentKey`.
         //
         // That helper consults `ProcessInfo.environment` itself before falling

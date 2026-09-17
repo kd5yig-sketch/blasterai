@@ -49,13 +49,49 @@ struct FileFormatRegistrationTests {
         }
     }
 
-    @Test("Both shipped formats are declared and openable")
+    /// Named "both" when there were two. Every format the app opens belongs
+    /// here, so a new one that reaches `openableExtensions` without an
+    /// Info.plist declaration is caught from the other direction than
+    /// `declaredTypesAreOpenable` checks.
+    @Test("Every shipped format is declared and openable")
     func bothFormatsRegistered() {
         let declared = declaredExtensions
-        for ext in [BlasterSceneFormat.fileExtension, BlasterPackFormat.fileExtension] {
+        for ext in [BlasterSceneFormat.fileExtension, BlasterPackFormat.fileExtension,
+                    BlasterColorwayFormat.fileExtension, BlasterKeyFormat.fileExtension] {
             #expect(declared.contains(ext), "Info.plist does not declare .\(ext)")
             #expect(BlasterFileFormat.openableExtensions.contains(ext))
         }
+    }
+
+    /// The fourth place, and the one with no other guard on it.
+    ///
+    /// `ImportRouteSheet`'s switch falls through to the scene importer, so a
+    /// format declared in Info.plist and accepted by `canOpen` but missing a
+    /// case here does not vanish — it opens with the wrong decoder and reports a
+    /// parse error about a file that is perfectly fine. That is harder to
+    /// diagnose than the disappearing-file bug this suite was written for,
+    /// because something *does* happen and the message is plausible.
+    @Test("Every openable format routes to its own importer")
+    func everyFormatRoutes() {
+        let expected: [String: ImportRouteSheet.Route] = [
+            BlasterSceneFormat.fileExtension: .scene,
+            BlasterPackFormat.fileExtension: .pack,
+            BlasterColorwayFormat.fileExtension: .colorway,
+            BlasterKeyFormat.fileExtension: .giftedKey,
+        ]
+        for ext in BlasterFileFormat.openableExtensions {
+            let route = ImportRouteSheet.route(for: URL(fileURLWithPath: "/tmp/example.\(ext)"))
+            #expect(route == expected[ext],
+                    ".\(ext) is openable but ImportRouteSheet sends it to \(route)")
+        }
+    }
+
+    /// The fallthrough still has to work: an unknown extension that somehow
+    /// reaches the sheet gets the scene importer and its error, rather than
+    /// nothing at all.
+    @Test("An unknown extension still lands somewhere")
+    func unknownExtensionFallsThrough() {
+        #expect(ImportRouteSheet.route(for: URL(fileURLWithPath: "/tmp/x.whatever")) == .scene)
     }
 
     @Test("An unrelated file is left alone")

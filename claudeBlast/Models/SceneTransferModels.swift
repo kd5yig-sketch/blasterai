@@ -62,16 +62,23 @@ enum BlasterPackFormat {
 
 /// The file formats Blaster opens.
 ///
-/// One list, because there are three places that have to agree — the
-/// `CFBundleDocumentTypes` in Info.plist, the `onOpenURL` guard, and the
-/// `fileImporter`'s content types — and when the pack format was added the guard
+/// One list, because there are **four** places that have to agree — the
+/// Info.plist declarations, the `onOpenURL` guard, the `fileImporter`'s content
+/// types, and `ImportRouteSheet` — and when the pack format was added the guard
 /// was missed. A file then arrived, launched the app, and vanished: no sheet, no
 /// error, nothing to explain it. Adding a format means adding it here.
+///
+/// This said "three" until the gifted key, and the fourth is the nastier one.
+/// `ImportRouteSheet`'s switch falls through to the scene importer, so a format
+/// registered everywhere *except* there does not vanish — it opens with the
+/// wrong decoder and reports a parse error about a file that is perfectly fine,
+/// which is a worse bug to diagnose than nothing happening at all.
 enum BlasterFileFormat {
     static let openableExtensions: Set<String> = [
         BlasterSceneFormat.fileExtension,
         BlasterPackFormat.fileExtension,
         BlasterColorwayFormat.fileExtension,
+        BlasterKeyFormat.fileExtension,
     ]
 
     static func canOpen(_ url: URL) -> Bool {
