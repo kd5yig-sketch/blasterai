@@ -21,14 +21,32 @@ struct ImportRouteSheet: View {
     let url: URL
     let onDismiss: () -> Void
 
-    var body: some View {
+    /// Which importer a file belongs to.
+    ///
+    /// Split out from the body so the decision can be tested. It is the one of
+    /// the four registration places with no other guard on it: `Info.plist` and
+    /// `canOpen` are checked against each other by `FileFormatRegistrationTests`,
+    /// but a format that reaches here without a case falls through to `.scene`
+    /// and reports a parse error about a file that is perfectly fine.
+    enum Route: Equatable {
+        case scene, pack, colorway, giftedKey
+    }
+
+    static func route(for url: URL) -> Route {
         switch url.pathExtension.lowercased() {
-        case BlasterPackFormat.fileExtension:
-            PackImportSheet(url: url, onDismiss: onDismiss)
-        case BlasterColorwayFormat.fileExtension:
-            ColorwayImportSheet(url: url, onDismiss: onDismiss)
-        default:
-            SceneImportSheet(url: url, onDismiss: onDismiss)
+        case BlasterPackFormat.fileExtension:     return .pack
+        case BlasterColorwayFormat.fileExtension: return .colorway
+        case BlasterKeyFormat.fileExtension:      return .giftedKey
+        default:                                  return .scene
+        }
+    }
+
+    var body: some View {
+        switch Self.route(for: url) {
+        case .pack:      PackImportSheet(url: url, onDismiss: onDismiss)
+        case .colorway:  ColorwayImportSheet(url: url, onDismiss: onDismiss)
+        case .giftedKey: GiftedKeyImportSheet(url: url, onDismiss: onDismiss)
+        case .scene:     SceneImportSheet(url: url, onDismiss: onDismiss)
         }
     }
 }

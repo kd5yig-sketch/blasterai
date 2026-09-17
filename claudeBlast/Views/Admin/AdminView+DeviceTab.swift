@@ -250,12 +250,23 @@ extension AdminView {
                     }
                 }
             } else {
+                // The picker is a development affordance and only appears in a
+                // development build.
+                //
+                // Mock is the one way to reach sentence mode without a working
+                // key: choosing it leaves `isMissingKey` false, so the child
+                // hears invented sentences no model produced. Every other route
+                // already falls back to single-word. `ProviderSelection.choose`
+                // coerces a stored "mock" away in RELEASE, so a value set here
+                // in DEBUG cannot follow a device into someone's home.
+                #if DEBUG
                 Picker("Provider", selection: $providerChoice) {
                     Text("OpenAI").tag("openai")
                     // Apple Intelligence hidden — on-device safety guardrails
                     // block innocuous AAC content (see PRD discussion log).
                     Text("Mock").tag("mock")
                 }
+                #endif
                 if providerChoice == "openai" {
                     // A rejected key is not a failed request, and must not read
                     // like one. Until this existed, a revoked key produced
@@ -266,10 +277,21 @@ extension AdminView {
                             Label("This key was rejected", systemImage: "exclamationmark.triangle.fill")
                                 .font(.headline)
                                 .foregroundStyle(.orange)
-                            Text("OpenAI refused it — it may have been revoked or deleted. "
-                                 + "Paste a new key below to start generating sentences again.")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                            // Whose problem this is depends on whose key it is.
+                            // Telling an evaluator to paste a new key sends them
+                            // looking for one they were never given; telling
+                            // them who to ask is the actionable half.
+                            if let gift = giftedKey {
+                                Text("The key \(gift.issuer.isEmpty ? "you were given" : "\(gift.issuer) gave you") "
+                                     + "has been turned off. Nothing you did caused this, and nothing is being billed to you.")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            } else {
+                                Text("OpenAI refused it — it may have been revoked or deleted. "
+                                     + "Paste a new key below to start generating sentences again.")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
                             // The reassurance is the point: a caregiver reading
                             // this needs to know the child is not stuck.
                             Text("Until then this device speaks each word as it is tapped, exactly as it would with no key at all. Nothing else is affected.")
@@ -291,10 +313,18 @@ extension AdminView {
                             Label("This key is out of credit", systemImage: "creditcard.trianglebadge.exclamationmark")
                                 .font(.headline)
                                 .foregroundStyle(.orange)
-                            Text("OpenAI stopped accepting requests because the spending limit on this key has been reached. "
-                                 + "The key itself is fine.")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                            if let gift = giftedKey {
+                                Text("The key \(gift.issuer.isEmpty ? "you were given" : "\(gift.issuer) gave you") "
+                                     + "has reached its spending limit. The key is fine and this is not your bill — "
+                                     + "it starts working again once the limit is raised.")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            } else {
+                                Text("OpenAI stopped accepting requests because the spending limit on this key has been reached. "
+                                     + "The key itself is fine.")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
                             Text("Until then this device speaks each word as it is tapped, exactly as it would with no key at all. Nothing else is affected.")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
@@ -319,7 +349,28 @@ extension AdminView {
                                 .foregroundStyle(.secondary)
                         }
                     }
-                    OpenAIKeyEntrySection(apiKey: $apiKey, showCostEstimate: false)
+                    // A gifted key is not a key the caregiver typed, and a
+                    // masked field is a poor way to say so. Showing who it is
+                    // for turns an anonymous secret into a thing with a
+                    // provenance — and the name matches what Mark sees against
+                    // that key in the OpenAI dashboard, so a support
+                    // conversation has a shared noun.
+                    if let gift = giftedKey, !apiKey.isEmpty {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Label("Gifted key — \(gift.label)", systemImage: "gift.fill")
+                                .font(.headline)
+                            Text(gift.issuer.isEmpty
+                                 ? "sk-…\(gift.lastFour) · added \(gift.issuedDisplay)"
+                                 : "From \(gift.issuer) · sk-…\(gift.lastFour) · added \(gift.issuedDisplay)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Text("Whoever sent this key pays for the AI features on this device.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    } else {
+                        OpenAIKeyEntrySection(apiKey: $apiKey, showCostEstimate: false)
+                    }
                     if apiKey.isEmpty {
                         Text("Enter your OpenAI API key to enable AI sentence generation.")
                             .font(.caption)
@@ -401,10 +452,39 @@ extension AdminView {
             // no matching tag and simply shows nothing selected.
             let resolved = ImageSetID.resolved(imageSetRaw)
             if resolved.rawValue != imageSetRaw { imageSetRaw = resolved.rawValue }
+
+            // Re-read both, because a key can arrive while Admin is closed — the
+            // install happens in its own sheet, launched from a file tap, and
+            // the `@State` seeded when this view was built knows nothing of it.
+            apiKey = OpenAIKeyVault.currentKey() ?? ""
+            giftedKey = GiftedKeyRecord.load()
+
+            // Write the coercion through, do not just read around it.
+            //
+            // `ProviderSelection.choose` ignores a stored "mock" in RELEASE, but
+            // the *stored value* stays "mock" — and several things in this
+            // section still test it directly, including the `if providerChoice
+            // == "openai"` that wraps the key field. A device carrying that
+            // value into a shipping build would show no way to enter a key, and
+            // no picker to change the setting back, which is a lockout rather
+            // than a cosmetic mismatch.
+            #if !DEBUG
+            if providerChoice != "openai" { providerChoice = "openai" }
+            #endif
         }
         .onChange(of: providerChoice) { applyProvider() }
         .onChange(of: apiKey) {
             OpenAIKeyVault.setKey(apiKey)
+            // A record outliving its key would label somebody else's key with
+            // the evaluator's name, which is worse than showing nothing. The
+            // install path writes the record *after* the key, so it survives
+            // this; every other route through here is a caregiver typing, and
+            // that is exactly when the gift is over.
+            if let gift = giftedKey,
+               GiftedKeyObfuscation.lastFour(of: apiKey) != gift.lastFour {
+                GiftedKeyRecord.clear()
+                giftedKey = nil
+            }
             // A different key has not been rejected — it has not been tried. The
             // flag is about one credential, so it must not outlive it, or a
             // caregiver who fixes the problem stays in single-word mode with no
@@ -580,7 +660,13 @@ extension AdminView {
         // but only an *explicit* Mock choice means "generate fake sentences".
         // Choosing OpenAI with no key means this device has no AI, and a device
         // with no AI speaks each word as it is tapped.
+        // Mirrors `ProviderSelection.choose`: in a shipping build there is no
+        // Mock, so an empty key means no AI whatever the stored choice says.
+        #if DEBUG
         sentenceEngine.isMissingKey = (providerChoice == "openai" && apiKey.isEmpty)
+        #else
+        sentenceEngine.isMissingKey = apiKey.isEmpty
+        #endif
         sentenceEngine.switchProvider(newProvider)
     }
 }

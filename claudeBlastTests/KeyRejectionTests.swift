@@ -168,6 +168,77 @@ struct KeyRejectionTests {
         #expect(e.interactionMode == .sentence)
     }
 
+    // MARK: - The one predicate behind the rule
+    //
+    // `canGenerateSentences` gates two things that must agree: what
+    // `interactionMode` returns, and whether the caregiver menu offers the
+    // switch into sentences. They used to be decided separately, which is how
+    // "Switch to AI Sentences" became a button that set the override and then
+    // watched `interactionMode` override it straight back — no change, no
+    // explanation.
+
+    @Test("A device with a working key can generate")
+    func canGenerateWithAKey() {
+        let e = engine()
+        e.isMissingKey = false
+        #expect(e.canGenerateSentences)
+    }
+
+    @Test("Every reason the key is unusable stops generation")
+    func cannotGenerateWhenKeyIsUnusable() {
+        let noKey = engine()
+        noKey.isMissingKey = true
+        #expect(!noKey.canGenerateSentences)
+
+        let rejected = engine()
+        rejected.isMissingKey = false
+        rejected.noteGenerationFailure(http(401))
+        #expect(!rejected.canGenerateSentences)
+
+        let dry = engine()
+        dry.isMissingKey = false
+        dry.noteGenerationFailure(outOfCredit())
+        #expect(!dry.canGenerateSentences)
+    }
+
+    /// The property that makes it safe for the menu to read: whenever the device
+    /// cannot generate, the mode it reports is already single-word. A menu row
+    /// gated on this can never offer something the engine will refuse.
+    @Test("Unable to generate always means single-word")
+    func inabilityImpliesSingleWord() {
+        for e in [engine(), engine(), engine()] where !e.canGenerateSentences {
+            #expect(e.interactionMode == .singleWord)
+        }
+
+        let dry = engine()
+        dry.isMissingKey = false
+        dry.noteGenerationFailure(outOfCredit())
+        #expect(!dry.canGenerateSentences)
+        #expect(dry.interactionMode == .singleWord)
+    }
+
+    /// Capability is not a stage. A Stage I child on a device with a perfect key
+    /// still speaks single words, and that must not read as "this device cannot
+    /// do sentences" — it would disable a menu row for the wrong reason.
+    @Test("A Stage I child does not make the device incapable")
+    func stageIsNotCapability() {
+        let container = TestStore.freshContainer()
+        let context = container.mainContext
+        ProfileMigration.ensureProfilesAfterBootstrap(context: context)
+        let child = ChildProfile(displayName: "Stage One", brownsStage: .one, isActive: true)
+        context.insert(child)
+        let resolver = ChildProfileResolver()
+        resolver.configure(modelContext: context)
+        resolver.setActive(id: child.id)
+
+        let e = SentenceEngine(provider: MockSentenceProvider())
+        e.configure(modelContext: context, profileResolver: resolver)
+        e.isMissingKey = false
+
+        #expect(e.canGenerateSentences)          // the machinery works
+        #expect(e.interactionMode == .singleWord) // the child is Stage I
+    }
+
     /// A model this key may not call says nothing about the key. Allowlist
     /// changes propagate with a lag, so latching here would keep a
     /// newly-granted key broken until the app was relaunched.

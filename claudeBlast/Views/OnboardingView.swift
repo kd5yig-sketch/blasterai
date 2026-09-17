@@ -13,6 +13,7 @@
 import SwiftUI
 import SwiftData
 import AVFoundation
+import UniformTypeIdentifiers
 
 struct OnboardingView: View {
     @Environment(\.modelContext) private var modelContext
@@ -55,6 +56,9 @@ struct OnboardingView: View {
         ImageSetID.resolved(UserDefaults.standard.string(forKey: AppSettingsKey.imageSet))
 
     @State private var apiKey: String = ""
+    /// Picking a `.blasterkey` file someone sent, rather than typing a key.
+    @State private var isPickingKeyFile = false
+    @State private var giftedKeyURL: ImportSheetURL?
     /// Seeded from the registered default (RELEASE: ON, DEBUG: OFF — see
     /// claudeBlastApp.init) so onboarding reflects the build's sync posture
     /// rather than forcing ON. The iCloud step is hidden in release builds —
@@ -405,9 +409,39 @@ struct OnboardingView: View {
             } icon: {
                 Image(systemName: "key.fill").foregroundStyle(.orange)
             }
+            // The other way a key arrives, on the one screen whose whole job is
+            // getting a key onto the device.
+            //
+            // An evaluator holding a .blasterkey file can simply tap it in
+            // Messages and never see this step — but someone who worked through
+            // setup first, then remembered the file, would otherwise be staring
+            // at a field for a key they were never asked to obtain.
+            Divider()
+            Button {
+                isPickingKeyFile = true
+            } label: {
+                Label("Someone sent me a key file", systemImage: "gift")
+            }
+            .font(.callout)
             Text("Skip to use Mock responses instead (no API calls). You can add a key later from Admin.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+        }
+        .fileImporter(isPresented: $isPickingKeyFile,
+                      allowedContentTypes: [.blasterKey],
+                      allowsMultipleSelection: false) { result in
+            if case .success(let urls) = result, let url = urls.first {
+                giftedKeyURL = ImportSheetURL(url: url)
+            }
+        }
+        .sheet(item: $giftedKeyURL) { wrapper in
+            GiftedKeyImportSheet(url: wrapper.url) {
+                giftedKeyURL = nil
+                // The sheet writes straight to the Keychain, so the field this
+                // step binds has to catch up or Next would commit an empty key
+                // over the one just installed.
+                apiKey = OpenAIKeyVault.currentKey() ?? apiKey
+            }
         }
     }
 

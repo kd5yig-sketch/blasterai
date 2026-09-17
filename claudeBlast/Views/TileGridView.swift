@@ -648,12 +648,25 @@ struct TileGridView: View {
                 .padding(.top, 12)
                 .padding(.bottom, 4)
             if !isPatientDevice {
-                caregiverMenuRow(
-                    engine.interactionMode == .singleWord ? "Switch to AI Sentences" : "Switch to Single Words",
-                    systemImage: "arrow.left.arrow.right"
-                ) {
-                    showCaregiverMenu = false
-                    toggleInteractionMode()
+                // Only the switch *into* sentences is gated.
+                //
+                // Leaving sentence mode never needs anything, but entering it on
+                // a device with no usable key was a dead button: the tap set the
+                // override, `interactionMode` overrode it straight back to
+                // single-word, and nothing on screen changed or explained why.
+                // Disabled and saying so beats enabled and inert.
+                if engine.interactionMode == .singleWord && !engine.canGenerateSentences {
+                    caregiverMenuRow("AI Sentences need a key",
+                                     systemImage: "key.slash",
+                                     enabled: false) { }
+                } else {
+                    caregiverMenuRow(
+                        engine.interactionMode == .singleWord ? "Switch to AI Sentences" : "Switch to Single Words",
+                        systemImage: "arrow.left.arrow.right"
+                    ) {
+                        showCaregiverMenu = false
+                        toggleInteractionMode()
+                    }
                 }
                 Divider()
             }
@@ -676,6 +689,7 @@ struct TileGridView: View {
     }
 
     private func caregiverMenuRow(_ title: String, systemImage: String,
+                                  enabled: Bool = true,
                                   action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Label(title, systemImage: systemImage)
@@ -686,6 +700,8 @@ struct TileGridView: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .disabled(!enabled)
+        .foregroundStyle(enabled ? Color.primary : Color.secondary)
     }
 
     /// Flip **this device** to the other interaction mode. Wired to the

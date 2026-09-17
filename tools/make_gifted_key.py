@@ -118,6 +118,14 @@ def read_key(supplied: str | None) -> str:
     key = getpass.getpass("Paste the OpenAI key (input hidden): ").strip()
     if not key:
         sys.exit("No key given.")
+    # Say that something arrived, and enough of it to recognise.
+    #
+    # Hidden input means a paste that silently failed — a terminal that swallowed
+    # it, a clipboard holding the wrong thing — looks exactly like one that
+    # worked, right up until an evaluator taps a file containing nothing. The
+    # length and last four are enough to check against the dashboard without
+    # putting the key on screen.
+    print(f"  got {len(key)} characters, ending …{key[-4:]}", file=sys.stderr)
     return key
 
 

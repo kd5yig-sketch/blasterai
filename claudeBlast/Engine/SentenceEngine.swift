@@ -125,7 +125,7 @@ final class SentenceEngine {
         // with no key at all it would mean the mock inventing sentences nobody
         // asked for. Single-word is the honest behaviour in both cases, and it
         // is what a plain AAC device does.
-        if isKeyUnusable || isMissingKey { return .singleWord }
+        if !canGenerateSentences { return .singleWord }
         return scriptedModeOverride ?? (profileResolver?.interactionMode ?? .sentence)
     }
 
@@ -173,6 +173,19 @@ final class SentenceEngine {
     /// this rather than remembering to check two flags. The distinction lives in
     /// the copy, not in the behaviour.
     var isKeyUnusable: Bool { isKeyRejected || isQuotaExhausted }
+
+    /// Whether this device can actually produce a sentence right now.
+    ///
+    /// The one predicate behind the rule, so nothing can offer sentence mode
+    /// that `interactionMode` will then silently refuse. That mismatch is what
+    /// made the caregiver menu's "Switch to AI Sentences" a dead button on a
+    /// keyless device: the tap set the override, `interactionMode` overrode it
+    /// straight back, and nothing on screen changed or said why.
+    ///
+    /// Note it says nothing about the child's stage. A Stage I child on a device
+    /// with a perfect key still speaks single words — that is a clinical fact,
+    /// not a capability. This is only about whether the machinery works.
+    var canGenerateSentences: Bool { !isKeyUnusable && !isMissingKey }
 
     /// Clear both refusal states — the caregiver has entered a different key.
     func clearKeyRejection() {
@@ -304,6 +317,27 @@ final class SentenceEngine {
     func switchProvider(_ newProvider: any SentenceProvider) {
         resetAll()
         provider = newProvider
+    }
+
+    /// Start using a key that has just been stored.
+    ///
+    /// Storing a key is not the same as using one, and the gap between them is
+    /// invisible. The provider is chosen once at launch from whatever the vault
+    /// held then, so a key written afterwards changes nothing until the app is
+    /// relaunched: sentence mode turns on, sentences appear, and they come from
+    /// `MockSentenceProvider` — invented, plausible, and nothing says so. On a
+    /// child's communication device that is the worst possible way to be wrong.
+    ///
+    /// Found 2026-09-17 installing a verified key from a file tap. `AdminView`
+    /// already did all of this through `applyProvider` on `.onChange(of:
+    /// apiKey)`, which is why typing a key had always worked — the bug was that
+    /// a second way to install one existed and had to remember the same three
+    /// steps. Naming them here is what stops the third way getting it wrong.
+    func adoptKey(_ key: String) {
+        // A refusal belonged to the key being replaced, not to this one.
+        clearKeyRejection()
+        isMissingKey = false
+        switchProvider(OpenAISentenceProvider(apiKey: key))
     }
 
     // MARK: - Tile management
