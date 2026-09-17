@@ -34,9 +34,28 @@ enum WordVerdict: Equatable {
     case blocked(reason: String)
     /// Legal but off for a young board — surface for caregiver review.
     case flagged(reason: String)
+    /// **A tier that should have run did not.** Not a judgement about the word —
+    /// a statement that no judgement was reached.
+    ///
+    /// Distinct from `.allowed` because the two were indistinguishable, and the
+    /// consequence was silent: an exhausted key made tier 3 throw, `try?`
+    /// swallowed it, every word kept tier 1's `.allowed` default, and the
+    /// Add-Tiles path then stamped it **approved** — recording "checked and
+    /// fine" for a word nothing had checked. Under a spend-capped key that is
+    /// not an edge case; running out of credit is an expected state, so the
+    /// primary gate being off would have been an expected state too.
+    ///
+    /// Treated as `flagged` by every consumer: the word is still created (a
+    /// billing state must not stop a caregiver adding "grandma"), but it waits
+    /// for a human instead of going straight to the child.
+    case unreviewed(reason: String)
 
     var isBlocked: Bool { if case .blocked = self { return true }; return false }
     var isFlagged: Bool { if case .flagged = self { return true }; return false }
+    var isUnreviewed: Bool { if case .unreviewed = self { return true }; return false }
+
+    /// Whether the word must wait for a caregiver before the child sees it.
+    var needsCaregiver: Bool { isFlagged || isUnreviewed }
 }
 
 struct WordModerationService {
@@ -79,29 +98,97 @@ struct WordModerationService {
         }
         guard !pending.isEmpty, !apiKey.isEmpty else { return result }
 
+        // Why a failed tier is recorded rather than shrugged off.
+        //
+        // Failing *open* is right — a tunnel must not stop a caregiver adding a
+        // word. What was wrong was failing open *silently*: the word came out
+        // `.allowed`, identical to one the rubric had cleared, and downstream
+        // stamped it approved. The reason is carried so the caregiver is told
+        // "we couldn't check this" rather than left to wonder.
+        var unavailable: String?
+
         // Tier 2 — free moderations endpoint (hard policy).
-        if let flags = try? await moderationFlags(for: pending) {
+        //
+        // Free at OpenAI's price list, which is not the same as reachable: a
+        // project spend limit gates the project, not the line item.
+        do {
+            let flags = try await moderationFlags(for: pending)
             for (word, categories) in flags where !categories.isEmpty {
                 result[word] = .blocked(reason: "policy: \(categories.sorted().joined(separator: ", "))")
             }
+        } catch {
+            unavailable = Self.unavailableReason(error)
         }
+
         let stillAllowed = pending.filter { result[$0] == .allowed }
-        guard !stillAllowed.isEmpty else { return result }
 
         // Tier 3 — age-appropriateness rubric (the real gate).
-        if let ratings = try? await appropriatenessRatings(for: stillAllowed) {
-            for (word, rating) in ratings {
-                switch rating {
-                case .inappropriate:
-                    result[word] = .blocked(reason: "not appropriate for a young board")
-                case .questionable:
-                    result[word] = .flagged(reason: "may be inappropriate for a young board")
-                case .appropriate:
-                    break
+        //
+        // Billed `gpt-4o-mini`, so this is the tier an exhausted key loses — and
+        // it is the only tier that catches weapons, drugs, alcohol, gambling and
+        // adult themes. Tier 2 does not flag a lone "gun"; tier 1 cannot
+        // enumerate them. Losing this quietly is the whole problem.
+        if !stillAllowed.isEmpty {
+            do {
+                let ratings = try await appropriatenessRatings(for: stillAllowed)
+                for (word, rating) in ratings {
+                    switch rating {
+                    case .inappropriate:
+                        result[word] = .blocked(reason: "not appropriate for a young board")
+                    case .questionable:
+                        result[word] = .flagged(reason: "may be inappropriate for a young board")
+                    case .appropriate:
+                        break
+                    }
                 }
+            } catch {
+                unavailable = Self.unavailableReason(error)
             }
         }
+
+        if let unavailable {
+            result = Self.downgradingUnchecked(result, among: pending, reason: unavailable)
+        }
         return result
+    }
+
+    /// Turn "nothing objected" into "nothing checked" for the words a failed
+    /// tier never reached a verdict on.
+    ///
+    /// Only words still sitting on tier 1's `.allowed` default are downgraded. A
+    /// word tier 2 blocked, or tier 3 rated before the other tier failed, has a
+    /// real verdict and keeps it — a partial outage must not discard the
+    /// judgements that did land.
+    ///
+    /// `static` and pure so the rule is testable without a network. The tiers
+    /// themselves are not injectable, so this is the part that can be pinned.
+    static func downgradingUnchecked(_ verdicts: [String: WordVerdict],
+                                     among words: [String],
+                                     reason: String) -> [String: WordVerdict] {
+        var out = verdicts
+        for word in words where out[word] == .allowed {
+            out[word] = .unreviewed(reason: reason)
+        }
+        return out
+    }
+
+    /// Caregiver-facing reason a tier could not run.
+    ///
+    /// `static` and pure so it is testable without a network — see the note in
+    /// CLAUDE.md about tests that reach into private paths and silently pass.
+    static func unavailableReason(_ error: Error) -> String {
+        switch OpenAIFailure.classify(error) {
+        case .exhausted:
+            return "the key is out of credit"
+        case .rejected:
+            return "the key was refused"
+        case .capability:
+            return "this key cannot use the review model"
+        case .requestRefused:
+            return "the review service refused the request"
+        case .transient:
+            return "the review service could not be reached"
+        }
     }
 
     // MARK: - Tier 3: age-appropriateness rubric (gpt-4o-mini)
@@ -218,6 +305,12 @@ struct WordModerationService {
                 tile.retire(reason: reason)
                 _ = cache.invalidate(containingTileKey: tile.key)
             case .flagged:
+                tile.flagForReview()
+            case .unreviewed:
+                // The word is created, but it is not stamped approved — nothing
+                // approved it. It waits for a caregiver, which is what
+                // `needsReview` already means and what `isHiddenFromChild`
+                // already honours.
                 tile.flagForReview()
             default:
                 tile.approveReview()

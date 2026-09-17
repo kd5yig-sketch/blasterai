@@ -349,13 +349,10 @@ struct SceneGeneratorSheet: View {
                         .font(.caption)
                 }
 
-                if let error = generationError {
-                    Section {
-                        Text(error)
-                            .font(.caption)
-                            .foregroundStyle(.red)
-                    }
-                }
+                // (The error moved next to Generate — same reason as the New
+                // Page sheet: buried in a long Form, it was below the fold
+                // while the button sat in the fixed footer, so a refusal read
+                // as a dead button.)
 
                 if apiKey.isEmpty {
                     Section {
@@ -367,6 +364,15 @@ struct SceneGeneratorSheet: View {
             }
 
             Spacer(minLength: 0)
+
+            if let error = generationError {
+                Label(error, systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal)
+                    .transition(.opacity)
+            }
 
             Button {
                 runGeneration()
@@ -449,7 +455,7 @@ struct SceneGeneratorSheet: View {
                 let result = try await service.generate(description: desc, allTiles: tiles)
                 await MainActor.run { show(result, brief: [desc]) }
             } catch {
-                await MainActor.run { generationError = error.localizedDescription }
+                await MainActor.run { generationError = OpenAIFailure.caregiverMessage(for: error) }
             }
             await MainActor.run { isGenerating = false }
         }
@@ -867,7 +873,7 @@ struct ScenePreviewView: View {
                     onRefined(text)
                 }
             } catch {
-                await MainActor.run { refineError = error.localizedDescription }
+                await MainActor.run { refineError = OpenAIFailure.caregiverMessage(for: error) }
             }
             await MainActor.run { isRefining = false }
         }

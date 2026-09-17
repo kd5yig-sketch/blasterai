@@ -72,3 +72,86 @@ import SwiftData
         #expect(flags["w2"] == ["violence"])
     }
 }
+
+// MARK: - When a tier could not run
+//
+// The hole these cover: an exhausted key made tier 3 throw, `try?` swallowed it,
+// every word kept tier 1's `.allowed` default, and the Add-Tiles path stamped it
+// approved — recording "checked and fine" for a word nothing had checked. Tier 3
+// is the only tier that catches weapons, drugs, alcohol, gambling and adult
+// themes, so what sailed through was exactly what it exists to stop.
+
+@Suite struct ModerationUnavailableTests {
+
+    private func http(_ status: Int, _ body: String) -> Error {
+        OpenAIError.httpError(statusCode: status, body: body)
+    }
+
+    /// The reason is caregiver-facing, so "out of credit" must not surface as
+    /// "the service could not be reached" — one is a bill, the other is a tunnel,
+    /// and they send someone looking in different places.
+    @Test func exhaustionReadsAsCredit() {
+        let body = #"{"error":{"type":"insufficient_quota","code":"project_spend_limit_exceeded"}}"#
+        #expect(WordModerationService.unavailableReason(http(429, body)) == "the key is out of credit")
+    }
+
+    @Test func networkFailureReadsAsUnreachable() {
+        #expect(WordModerationService.unavailableReason(URLError(.timedOut))
+                == "the review service could not be reached")
+    }
+
+    @Test func rejectedKeyReadsAsRefused() {
+        #expect(WordModerationService.unavailableReason(http(401, "")) == "the key was refused")
+    }
+
+    /// The core rule. A word nothing objected to is not a word something cleared.
+    @Test func uncheckedWordsAreDowngraded() {
+        let out = WordModerationService.downgradingUnchecked(
+            ["beer": .allowed, "apple": .allowed],
+            among: ["beer", "apple"],
+            reason: "the key is out of credit")
+        #expect(out["beer"] == .unreviewed(reason: "the key is out of credit"))
+        #expect(out["apple"] == .unreviewed(reason: "the key is out of credit"))
+    }
+
+    /// A partial outage must not discard the judgements that did land — tier 2
+    /// can block while tier 3 is unreachable, and that block still stands.
+    @Test func realVerdictsSurviveAnOutage() {
+        let out = WordModerationService.downgradingUnchecked(
+            ["porn": .blocked(reason: "policy: sexual"),
+             "penis": .flagged(reason: "sensitive"),
+             "beer": .allowed],
+            among: ["porn", "penis", "beer"],
+            reason: "the key is out of credit")
+        #expect(out["porn"] == .blocked(reason: "policy: sexual"))
+        #expect(out["penis"] == .flagged(reason: "sensitive"))
+        #expect(out["beer"]?.isUnreviewed == true)
+    }
+
+    /// Both mean "a human looks before the child does", which is the only
+    /// question any consumer actually asks.
+    @Test func unreviewedNeedsACaregiverJustLikeFlagged() {
+        #expect(WordVerdict.unreviewed(reason: "x").needsCaregiver)
+        #expect(WordVerdict.flagged(reason: "x").needsCaregiver)
+        #expect(!WordVerdict.allowed.needsCaregiver)
+        #expect(!WordVerdict.blocked(reason: "x").needsCaregiver)
+    }
+
+    /// The consequence that made this a safety bug rather than a cosmetic one:
+    /// the word must not come out of the Add-Tiles path visible to the child.
+    @MainActor
+    @Test func anUncheckedWordIsHiddenFromTheChild() throws {
+        let context = TestStore.freshContainer().mainContext
+        let tile = TileModel(key: "beer", wordClass: "drinks")
+        context.insert(tile)
+
+        // What `reviewTiles` does with an unreviewed verdict, asserted through
+        // the tile's own transition rather than by re-running the audit — the
+        // tiers are not injectable, so the network half cannot be faked here.
+        tile.flagForReview()
+
+        #expect(tile.needsReview)
+        #expect(tile.isHiddenFromChild)
+        #expect(!tile.isRetired)   // held for review, not hidden as if judged
+    }
+}

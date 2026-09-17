@@ -16,6 +16,42 @@
 import Foundation
 import UIKit
 
+/// Art that was produced, and why anything missing is missing.
+///
+/// This used to be a bare `[ImageSetID: UIImage]`, and the reason was thrown
+/// away at the point of failure — every path swallowed its error with `try?`.
+/// The visible result was a scene-level sheet reporting "Created art for 0 of 2
+/// words. Couldn't generate: camera, crowd", which is true and tells a caregiver
+/// nothing, and a tile-level button that failed in complete silence. In both
+/// cases the answer — the key is out of credit — had been in hand and discarded
+/// one stack frame earlier.
+///
+/// Partial success is normal here and not an error: a style whose base fails
+/// contributes nothing while the others still land, and a failed transform ends
+/// that style's chain. So the images and the failure are both real at once, and
+/// a caller reports what arrived *and* why the rest did not.
+struct ArtResult {
+    var images: [ImageSetID: UIImage] = [:]
+
+    /// The first refusal encountered, classified.
+    ///
+    /// First rather than last: a spend limit refuses every subsequent call in
+    /// the batch, so the last one is just the same news repeated, while the
+    /// first is the one that actually explains the shape of what came back.
+    private(set) var failure: OpenAIFailure?
+
+    var isEmpty: Bool { images.isEmpty }
+    subscript(id: ImageSetID) -> UIImage? { images[id] }
+
+    /// One sentence for the caregiver, or nil if nothing went wrong.
+    var failureMessage: String? { failure?.caregiverMessage }
+
+    mutating func note(_ error: Error) {
+        let classified = OpenAIFailure.classify(error)
+        if failure == nil { failure = classified }
+    }
+}
+
 enum TileImageGenerator {
     /// OpenAI images model. `gpt-image-1` is the current model (dall-e-3 is
     /// retired on the images endpoint). It always returns base64 and does NOT
@@ -61,17 +97,23 @@ enum TileImageGenerator {
                          wordClass: String,
                          plan: [PlannedStyle],
                          detail: String = "",
-                         apiKey: String) async -> [ImageSetID: UIImage] {
-        guard !apiKey.isEmpty else { return [:] }
-        var out: [ImageSetID: UIImage] = [:]
+                         apiKey: String) async -> ArtResult {
+        guard !apiKey.isEmpty else { return ArtResult() }
+        var out = ArtResult()
 
         for planned in plan {
-            guard var image = try? await generateBase(displayName: displayName,
-                                                      wordClass: wordClass,
-                                                      imageSet: planned.base.id,
-                                                      detail: detail,
-                                                      apiKey: apiKey) else { continue }
-            out[planned.base.id] = image
+            var image: UIImage
+            do {
+                image = try await generateBase(displayName: displayName,
+                                               wordClass: wordClass,
+                                               imageSet: planned.base.id,
+                                               detail: detail,
+                                               apiKey: apiKey)
+            } catch {
+                out.note(error)
+                continue
+            }
+            out.images[planned.base.id] = image
 
             guard planned.needsSkinCheck else { continue }
             let wanted = planned.transforms
@@ -80,7 +122,7 @@ enum TileImageGenerator {
             // variant — a white house is a white house at any skin tone. Copy it
             // across rather than transforming, which would invent a person.
             guard await depictsSkin(image, apiKey: apiKey) else {
-                for variant in wanted { out[variant.id] = image }
+                for variant in wanted { out.images[variant.id] = image }
                 continue
             }
 
@@ -90,11 +132,16 @@ enum TileImageGenerator {
                 // set silently populated with the wrong skin tone is the exact
                 // failure these sets exist to prevent, and the caller reports
                 // what is missing by name.
-                guard let next = try? await transform(image, from: from, to: variant.id,
-                                                      apiKey: apiKey) else { break }
-                out[variant.id] = next
-                image = next
-                from = variant.id
+                do {
+                    let next = try await transform(image, from: from, to: variant.id,
+                                                   apiKey: apiKey)
+                    out.images[variant.id] = next
+                    image = next
+                    from = variant.id
+                } catch {
+                    out.note(error)
+                    break
+                }
             }
         }
         return out
@@ -119,23 +166,23 @@ enum TileImageGenerator {
     /// Returns only the newly produced art.
     static func fillMissingVariants(style: TileStyle,
                                     existing: [ImageSetID: UIImage],
-                                    apiKey: String) async -> [ImageSetID: UIImage] {
-        guard !apiKey.isEmpty else { return [:] }
+                                    apiKey: String) async -> ArtResult {
+        guard !apiKey.isEmpty else { return ArtResult() }
         guard style.variants.contains(where: { existing[$0.id] == nil }),
               let first = style.variants.compactMap({ existing[$0.id] }).first
-        else { return [:] }
+        else { return ArtResult() }
 
         // Same rule as generation: a picture with no person is identical in
         // every variant, so it is copied, never transformed.
         guard await depictsSkin(first, apiKey: apiKey) else {
-            var copies: [ImageSetID: UIImage] = [:]
+            var copies = ArtResult()
             for variant in style.variants where existing[variant.id] == nil {
-                copies[variant.id] = first
+                copies.images[variant.id] = first
             }
             return copies
         }
 
-        var produced: [ImageSetID: UIImage] = [:]
+        var produced = ArtResult()
         var carry: UIImage?
         var from: ImageSetID?
 
@@ -145,13 +192,17 @@ enum TileImageGenerator {
                 from = variant.id
                 continue
             }
-            guard let source = carry, let previous = from,
-                  let filled = try? await transform(source, from: previous,
-                                                    to: variant.id, apiKey: apiKey)
-            else { break }   // the chain cannot skip a link
-            produced[variant.id] = filled
-            carry = filled
-            from = variant.id
+            guard let source = carry, let previous = from else { break }
+            do {
+                let filled = try await transform(source, from: previous,
+                                                 to: variant.id, apiKey: apiKey)
+                produced.images[variant.id] = filled
+                carry = filled
+                from = variant.id
+            } catch {
+                produced.note(error)
+                break   // the chain cannot skip a link
+            }
         }
         return produced
     }
@@ -430,13 +481,20 @@ enum TileImageGenerator {
             throw OpenAIError.httpError(statusCode: 0, body: "Invalid response")
         }
         guard http.statusCode == 200 else {
-            // Surface OpenAI's structured error message (content policy, model
-            // access, invalid parameter) rather than the raw body.
-            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let error = json["error"] as? [String: Any],
-               let message = error["message"] as? String {
-                throw OpenAIError.apiError(message)
-            }
+            // The status and the raw body both travel, and that is the point.
+            //
+            // This used to pull OpenAI's `message` out and throw
+            // `OpenAIError.apiError(message)` — a case carrying no status code
+            // and no structured fields. `OpenAIFailure.classify` only matches
+            // `.httpError`, so every art failure classified as `.transient` and
+            // a spend-limited key reported "Couldn't reach OpenAI just now.
+            // Check the connection" on a verified 429. Extracting the friendly
+            // string destroyed the two fields that say what actually happened.
+            //
+            // The friendly string is not lost: `OpenAIFailure` parses the same
+            // body and hands back better copy, and passes OpenAI's own message
+            // through for the refusals where it is genuinely the right thing to
+            // show (content policy, invalid parameter).
             throw OpenAIError.httpError(statusCode: http.statusCode,
                                         body: String(data: data, encoding: .utf8) ?? "Unknown error")
         }

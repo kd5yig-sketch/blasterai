@@ -226,20 +226,21 @@ struct TilePhotoSection: View {
         defer { fillingStyle = nil }
         let images = await TileArtCompletion.generate(
             completing: work.style, for: tile, apiKey: apiKey, resolver: resolver)
-        for (set, image) in images {
+        for (set, image) in images.images {
             if let err = TilePhotoCommit.applyVariant(image, to: tile, imageSet: set,
                                                       context: modelContext, resolver: resolver) {
                 errorMessage = err
             }
         }
         if images.isEmpty {
-            errorMessage = "Couldn't generate \(work.style.displayName)."
-        } else if images.count < work.missing.count {
+            errorMessage = images.failureMessage ?? "Couldn't generate \(work.style.displayName)."
+        } else if images.images.count < work.missing.count {
             // Name what is still missing rather than reporting a bare success —
             // a style that silently never appears reads as the app ignoring it.
-            let landed = Set(images.keys)
+            let landed = Set(images.images.keys)
             let missing = work.missing.filter { !landed.contains($0) }.map(\.shortName)
-            errorMessage = "Couldn't generate: \(missing.joined(separator: ", "))."
+            let what = "Couldn't generate: \(missing.joined(separator: ", "))."
+            errorMessage = images.failureMessage.map { "\(what) \($0)" } ?? what
         }
     }
 
@@ -274,19 +275,26 @@ struct TilePhotoSection: View {
             displayName: tile.displayName, wordClass: tile.wordClass,
             plan: plan, detail: imageDetail, apiKey: apiKey)
 
-        for (set, image) in images {
+        for (set, image) in images.images {
             if let err = TilePhotoCommit.applyVariant(image, to: tile, imageSet: set,
                                                       context: modelContext, resolver: resolver) {
                 errorMessage = err
             }
         }
+        // The reason when there is one, the symptom when there isn't.
+        //
+        // This button used to fail in complete silence: `generate` swallowed the
+        // error and handed back an empty dictionary, so an out-of-credit key and
+        // a word the model refused to draw were indistinguishable — and neither
+        // said anything at all.
         if images.isEmpty {
-            errorMessage = "Couldn't generate an image."
-        } else if images.count < expected.count {
+            errorMessage = images.failureMessage ?? "Couldn't generate an image."
+        } else if images.images.count < expected.count {
             // Name what is missing rather than reporting a bare success — a style
             // that silently never appears reads as the app ignoring the request.
             let missing = expected.filter { images[$0] == nil }.map(\.shortName)
-            errorMessage = "Couldn't generate: \(missing.joined(separator: ", "))."
+            let what = "Couldn't generate: \(missing.joined(separator: ", "))."
+            errorMessage = images.failureMessage.map { "\(what) \($0)" } ?? what
         }
     }
 
@@ -307,7 +315,7 @@ struct TilePhotoSection: View {
                 errorMessage = err
             }
         } catch {
-            errorMessage = (error as? LocalizedError)?.errorDescription ?? "Couldn't refine the image."
+            errorMessage = OpenAIFailure.caregiverMessage(for: error)
         }
     }
 

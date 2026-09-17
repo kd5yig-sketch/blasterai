@@ -76,6 +76,11 @@ final class NewWordReviewModel {
             switch verdicts[key] {
             case .blocked: return .blocked
             case .flagged: return .flagged
+            // Unreviewed is shown as flagged on purpose. The caregiver's job is
+            // the same either way — look at this word before the child does —
+            // and inventing a fourth badge for "we couldn't check" would teach a
+            // distinction that changes nothing about what they have to do.
+            case .unreviewed: return .flagged
             default: return .approved
             }
         }

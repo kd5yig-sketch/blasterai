@@ -266,13 +266,55 @@ extension AdminView {
                             Label("This key was rejected", systemImage: "exclamationmark.triangle.fill")
                                 .font(.headline)
                                 .foregroundStyle(.orange)
-                            Text("OpenAI refused it — it may have been revoked, expired, or the account may be out of credit. "
+                            Text("OpenAI refused it — it may have been revoked or deleted. "
                                  + "Paste a new key below to start generating sentences again.")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                             // The reassurance is the point: a caregiver reading
                             // this needs to know the child is not stuck.
                             Text("Until then this device speaks each word as it is tapped, exactly as it would with no key at all. Nothing else is affected.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    // Out of credit is not a rejected key, and telling someone
+                    // to paste a new one sends them looking for a problem that
+                    // isn't there. The key is fine; the balance behind it is
+                    // not, and it starts working again on its own.
+                    //
+                    // This reads the same whether the limit is a spend cap on a
+                    // key someone was given or a family's own account running
+                    // dry — OpenAI reports both as `insufficient_quota`, and for
+                    // the person holding the iPad they are the same situation.
+                    if sentenceEngine.isQuotaExhausted {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Label("This key is out of credit", systemImage: "creditcard.trianglebadge.exclamationmark")
+                                .font(.headline)
+                                .foregroundStyle(.orange)
+                            Text("OpenAI stopped accepting requests because the spending limit on this key has been reached. "
+                                 + "The key itself is fine.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Text("Until then this device speaks each word as it is tapped, exactly as it would with no key at all. Nothing else is affected.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            // Says "close and reopen" because that is what is
+                            // true, not because it is good.
+                            //
+                            // This flag is in memory and nothing on the device
+                            // can observe a limit being raised at OpenAI, so
+                            // sentences do not come back on their own — verified
+                            // 2026-09-16. Everything a caregiver does in Admin
+                            // (scenes, art, word review) recovers by itself,
+                            // because no authoring path reads this flag; it is
+                            // only the child's tile-tap → sentence path that
+                            // latches. A "Check Again" button would fix it, and
+                            // was deliberately not built: with a soft limit, or
+                            // a hard one with alerts at 80% of $20, this state
+                            // is nearly unreachable in real use. Promising
+                            // automatic recovery in this sentence would have
+                            // been the actual bug.
+                            Text("Once the limit is raised, close and reopen Blaster to start generating sentences again.")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }

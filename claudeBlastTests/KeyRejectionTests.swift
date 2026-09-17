@@ -44,6 +44,14 @@ struct KeyRejectionTests {
                               body: "{\"error\":{\"code\":\"invalid_api_key\"}}")
     }
 
+    /// A 429 carrying the body OpenAI actually sends when the money runs out.
+    /// See `OpenAIFailureTests` for the verbatim capture and the four-way table.
+    private func outOfCredit() -> Error {
+        OpenAIError.httpError(
+            statusCode: 429,
+            body: #"{"error":{"type":"insufficient_quota","code":"project_spend_limit_exceeded"}}"#)
+    }
+
     // MARK: - Terminal vs transient
 
     /// The distinction the whole fix rests on. Before it, every failure looked
@@ -55,6 +63,11 @@ struct KeyRejectionTests {
     }
 
     /// A server having a bad day is not a credential problem.
+    ///
+    /// 429 stays in this list, but for a narrower reason than it once had: an
+    /// ordinary rate limit is transient, while a 429 whose body says
+    /// `insufficient_quota` is not — it stops the device, just under a different
+    /// name than rejection. See `quotaExhaustionIsNotRejection` below.
     @Test("Other HTTP failures are not rejections", arguments: [429, 500, 503])
     func otherStatusesAreTransient(_ status: Int) {
         #expect(!SentenceEngine.isKeyRejection(http(status)))
@@ -98,6 +111,74 @@ struct KeyRejectionTests {
         let e = engine()
         e.noteGenerationFailure(URLError(.timedOut))
         #expect(!e.isKeyRejected)
+        #expect(e.interactionMode == .sentence)
+    }
+
+    // MARK: - Out of credit
+
+    /// The failure this whole change exists to fix.
+    ///
+    /// Before it, a 429 was transient: the device did not fall back, so every
+    /// tap reached for a model that would refuse again and the child got silence
+    /// with nothing anywhere to explain it. Exactly the condition the original
+    /// 401 work removed, arriving through a different door.
+    @Test("An exhausted key drops the device into single-word mode")
+    func exhaustionForcesSingleWord() {
+        let e = engine()
+        e.noteGenerationFailure(outOfCredit())
+        #expect(e.isQuotaExhausted)
+        #expect(e.isKeyUnusable)
+        #expect(e.interactionMode == .singleWord)
+    }
+
+    /// Exhaustion and rejection stop the device the same way and are told apart
+    /// only in what the caregiver is shown. Collapsing them would put "paste a
+    /// new key" in front of someone whose key is perfectly good.
+    @Test("An exhausted key is not a rejected one")
+    func quotaExhaustionIsNotRejection() {
+        let e = engine()
+        e.noteGenerationFailure(outOfCredit())
+        #expect(!e.isKeyRejected)
+        #expect(!SentenceEngine.isKeyRejection(outOfCredit()))
+    }
+
+    /// Adding credit or raising the limit is the fix, and it arrives as a new
+    /// key or a relaunch. Either way the device must come back.
+    @Test("Clearing restores sentences after exhaustion")
+    func clearingRestoresAfterExhaustion() {
+        let e = engine()
+        e.noteGenerationFailure(outOfCredit())
+        #expect(e.interactionMode == .singleWord)
+
+        e.clearKeyRejection()
+        #expect(!e.isQuotaExhausted)
+        #expect(e.interactionMode == .sentence)
+    }
+
+    /// A rate limit is a burst, not a bill. Condemning the key here is the
+    /// failure the original doc comment warned about, and the reason exhaustion
+    /// is matched on the body rather than on the status code.
+    @Test("An ordinary rate limit changes nothing")
+    func rateLimitChangesNothing() {
+        let e = engine()
+        e.noteGenerationFailure(OpenAIError.httpError(
+            statusCode: 429,
+            body: #"{"error":{"type":"requests","code":"rate_limit_exceeded"}}"#))
+        #expect(!e.isKeyUnusable)
+        #expect(e.interactionMode == .sentence)
+    }
+
+    /// A model this key may not call says nothing about the key. Allowlist
+    /// changes propagate with a lag, so latching here would keep a
+    /// newly-granted key broken until the app was relaunched.
+    @Test("A withheld model never condemns the key")
+    func capabilityFailureNeverLatches() {
+        let e = engine()
+        e.noteGenerationFailure(OpenAIError.httpError(
+            statusCode: 403,
+            body: #"{"error":{"type":"invalid_request_error","code":"model_not_found","message":"does not have access to model `gpt-image-1`"}}"#))
+        #expect(!e.isKeyRejected)
+        #expect(!e.isQuotaExhausted)
         #expect(e.interactionMode == .sentence)
     }
 

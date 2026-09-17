@@ -49,6 +49,14 @@ final class SceneImageBatchController {
     private(set) var currentName = ""
     private(set) var failures: [String] = []
 
+    /// Why the run could not finish, in a sentence, or nil if nothing refused.
+    ///
+    /// Held once for the whole run rather than per word: a spend limit refuses
+    /// every remaining call, so repeating it beside each failed word would be
+    /// the same news twenty times. The per-word list still says *which*; this
+    /// says *why*.
+    private(set) var stopReason: String?
+
     /// What this run is doing. Drawing new art and filling in a style's missing
     /// variants share every bit of the machinery around them — the queue, pause,
     /// resume, background survival, failure list — and differ only in the call
@@ -222,7 +230,7 @@ final class SceneImageBatchController {
                 let tile = self.queue.removeFirst()
                 self.currentName = tile.displayName.isEmpty ? tile.value : tile.displayName
 
-                let images: [ImageSetID: UIImage]
+                let images: ArtResult
                 var failed: Bool
                 switch self.mode {
                 case .newArt:
@@ -234,13 +242,13 @@ final class SceneImageBatchController {
                     images = await TileImageGenerator.generate(
                         displayName: tile.displayName, wordClass: tile.wordClass,
                         plan: plan, apiKey: self.apiKey)
-                    failed = images.count < ArtPlan.expectedSets(plan).count
+                    failed = images.images.count < ArtPlan.expectedSets(plan).count
                 case .fillVariants(let style):
                     let missing = self.missingVariants(of: style, for: tile)
                     images = await TileImageGenerator.fillMissingVariants(
                         style: style, existing: self.existingArt(of: style, for: tile),
                         apiKey: self.apiKey)
-                    failed = images.count < missing.count
+                    failed = images.images.count < missing.count
                 case .completeStyle(let style):
                     // Shared with the per-tile button in `TilePhotoSection`, so
                     // "finish this style" cannot mean two different things
@@ -256,16 +264,22 @@ final class SceneImageBatchController {
                                                       resolver: resolver)
                     images = await TileArtCompletion.generate(
                         completing: style, for: tile, apiKey: self.apiKey, resolver: resolver)
-                    failed = images.count < work.missing.count
+                    failed = images.images.count < work.missing.count
                 }
                 if Task.isCancelled { return }
 
-                for (set, image) in images {
+                for (set, image) in images.images {
                     if let context = self.context, let resolver = self.resolver,
                        TilePhotoCommit.applyVariant(image, to: tile, imageSet: set,
                                                     context: context, resolver: resolver) != nil {
                         failed = true
                     }
+                }
+                // Why, not just which. A run that produced nothing used to
+                // report a list of words and no reason, so a caregiver out of
+                // credit read it as the app being broken.
+                if let reason = images.failureMessage, self.stopReason == nil {
+                    self.stopReason = reason
                 }
                 if failed { self.failures.append(self.currentName) }
                 self.completed += 1
@@ -362,6 +376,15 @@ struct SceneImageBatchSheet: View {
                 Text("Created art for \(controller.total - controller.failures.count) of \(controller.total) word\(controller.total == 1 ? "" : "s").")
                     .font(.headline)
                     .multilineTextAlignment(.center)
+                // The reason comes first and the word list second. "Couldn't
+                // generate: camera, crowd" was accurate and unusable on its own
+                // — it named the casualties and withheld the cause.
+                if let reason = controller.stopReason {
+                    Text(reason)
+                        .font(.callout)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 24)
+                }
                 if !controller.failures.isEmpty {
                     Text("Couldn't generate: \(controller.failures.joined(separator: ", ")). Try those from each tile.")
                         .font(.caption)
