@@ -140,4 +140,53 @@ struct OpenAIKeyVaultTests {
         #expect(!migrated)
         #expect(store.read() == nil)
     }
+
+    // MARK: - A fresh install must not inherit the last install's key
+    //
+    // iOS deletes the app container and UserDefaults on removal but keeps
+    // Keychain items, so a reinstall comes up already holding a key with nothing
+    // on screen to say so — onboarding's field starts empty while the vault is
+    // full. Found 2026-09-17 when "Someone sent me a key file" answered "this
+    // device already has a key" on a genuinely fresh install.
+    //
+    // The dialog was the small half. An iPad passed to another child, or handed
+    // back by the therapist who lent it, otherwise keeps billing the previous
+    // family's OpenAI account.
+
+    @Test("A fresh install drops the key the last install left behind")
+    func freshInstallClearsInheritedKey() {
+        let store = InMemorySecretStore(initial: "sk-the-previous-familys-key")
+        #expect(OpenAIKeyVault.clearIfInherited(hasRunBefore: false, store: store))
+        #expect(store.read() == nil)
+    }
+
+    /// The case that makes this safe to ship. An upgrade keeps its UserDefaults,
+    /// so it reports `true` — wiping there would delete a caregiver's own key on
+    /// the first launch after an App Store update.
+    @Test("An upgrade keeps the key it already had")
+    func upgradeKeepsItsKey() {
+        let store = InMemorySecretStore(initial: "sk-the-caregivers-own-key")
+        #expect(!OpenAIKeyVault.clearIfInherited(hasRunBefore: true, store: store))
+        #expect(store.read() == "sk-the-caregivers-own-key")
+    }
+
+    @Test("A first-ever install has nothing to clear")
+    func firstEverInstallIsANoOp() {
+        let store = InMemorySecretStore()
+        #expect(!OpenAIKeyVault.clearIfInherited(hasRunBefore: false, store: store))
+        #expect(store.read() == nil)
+    }
+
+    /// An env key belongs to whoever is launching the app right now — it is not
+    /// an inheritance, and `clearIfInherited` reads the store directly so it
+    /// cannot mistake one for the other.
+    @Test("An environment key is not treated as inherited")
+    func environmentKeyIsNotInherited() {
+        let store = InMemorySecretStore()
+        let env = ProcessInfo()
+        #expect(!OpenAIKeyVault.clearIfInherited(hasRunBefore: false, store: store))
+        // Nothing was stored, so nothing is there to have been wrongly cleared.
+        #expect(OpenAIKeyVault.currentKey(env: env, store: store)
+                == env.environment["OPENAI_API_KEY"]?.trimmingCharacters(in: .whitespaces))
+    }
 }
