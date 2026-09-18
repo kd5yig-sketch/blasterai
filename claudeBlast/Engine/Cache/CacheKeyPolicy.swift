@@ -36,7 +36,18 @@ enum CacheKeyPolicy {
     // prompt (2026-08). Every v2 entry was generated under "grammar and vocabulary
     // of a {grade} student" and is stale by construction, so the bump is the point
     // rather than a side effect — see BrownsStage.
-    nonisolated static let promptVersion = 3
+    //
+    // v4: tile order declared incidental (2026-09). Until then the prompt said
+    // nothing about what tap order meant, so the model guessed — and guessed
+    // differently per phrasing, putting the name first for "dad, i, thirsty" and
+    // last for "hungry, i, dad".
+    //
+    // The bump matters more than a wording change usually would, because this key
+    // is deliberately order-independent: two orders of the same tiles share one
+    // entry, so whichever order was generated first won forever and the
+    // inconsistency was invisible on every later hit. Every v3 entry was produced
+    // under that ambiguity and one of the two readings is now wrong.
+    nonisolated static let promptVersion = 4
 
     /// Stamped onto each cache entry (`SentenceCache.keyVersion`) and embedded in
     /// the key. Excludes stage + word class on purpose — those are legitimate

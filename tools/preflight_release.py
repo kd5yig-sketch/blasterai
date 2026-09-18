@@ -166,6 +166,31 @@ def check_gates() -> str:
     return "gates 8 and 9: schema fields correct"
 
 
+def check_private_cloudkit_only() -> str:
+    """No public CloudKit database anywhere.
+
+    CloudKit security roles govern the PUBLIC database. The defaults grant
+    `_world` read on every record type, which is harmless here only because this
+    app uses `.private(...)` exclusively — records in a user's private database
+    belong to that user and no role gives anyone else access.
+
+    That makes "private only" load-bearing and invisible. A future public-database
+    feature would make `_world` read on `CD_LoggedUtterance` an instant leak of a
+    child's speech, with nothing to warn anyone. This turns the assumption into a
+    check.
+    """
+    hits = []
+    for path in Path("claudeBlast").rglob("*.swift"):
+        for n, line in enumerate(path.read_text().splitlines(), 1):
+            if "cloudKitDatabase" in line and ".public" in line:
+                hits.append(f"{path}:{n}")
+    if hits:
+        raise Failure("a PUBLIC CloudKit database appears in the sources — the "
+                      "default `_world` read role would expose those records:\n" +
+                      "\n".join(f"       {h}" for h in hits))
+    return "CloudKit is private-database only"
+
+
 def check_privacy() -> str:
     manifest = list(Path(".").rglob("PrivacyInfo.xcprivacy"))
     if not manifest:
@@ -205,6 +230,7 @@ def main() -> int:
         ("shared scheme", check_shared_scheme),
         ("gates 8 & 9", check_gates),
         ("privacy & compliance", check_privacy),
+        ("cloudkit scope", check_private_cloudkit_only),
         ("audits", check_sibling_audits),
         ("Debug build", lambda: check_builds("Debug")),
         ("Release build", lambda: check_builds("Release")),
