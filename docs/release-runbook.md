@@ -123,6 +123,27 @@ Two things, both in Apple's consoles:
 `release.py` names both when export fails this way, and keeps the archive, so
 `--no-bump` re-exports once they exist rather than rebuilding.
 
+### The first distribution must be manual, once per machine
+
+This is a genuine bootstrap, not a gap in the script. `xcodebuild -exportArchive`
+*uses* a distribution certificate; it cannot create one, because issuing a
+certificate requires generating a private key and an interactive identity. Only
+Xcode's Organizer flow can do that on your behalf — or you generate a CSR in
+Keychain Access and request the certificate in the portal by hand, which is the
+same clicking with less discoverability.
+
+So, once per machine:
+
+    Xcode → Product → Archive
+    Organizer → select the archive → Distribute App → App Store Connect
+
+That mints the Apple Distribution certificate and the App Store provisioning
+profile. Both persist in the keychain afterwards, and every later build goes
+through `release.py` without touching Xcode.
+
+Done on Mark's machine 2026-09-18, producing 0.9.0 (2) — the first TestFlight
+build. A second machine, or a rotated certificate, needs this again.
+
 ### Creating the app record
 
 App Store Connect → Apps → **+** → New App:
