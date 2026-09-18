@@ -54,8 +54,14 @@ Xcode target, scheme, source directories, and type-name prefix. Two reasons:
 A marketing name that differs from the code name is normal. (Mild nit: `Blaster.BlasterScene`
 in fully-qualified form is slightly redundant, but that almost never appears in practice.)
 
-**This is the target, not yet the state.** The source still uses `claudeBlast`. Renaming an
-Xcode target is invasive and wide:
+**The user-visible half is already done.** `INFOPLIST_KEY_CFBundleDisplayName = BlasterAI`
+is set on both configurations, so the home screen, app switcher, Settings and share sheets
+all read **BlasterAI** while the target is still called `claudeBlast`. `CFBundleName` stays
+`claudeBlast` and is not shown to anyone. That is the seam this whole split exists to use:
+the rename can stay deferred indefinitely without a user ever seeing the code name.
+
+**The rest is the target, not yet the state.** The source still uses `claudeBlast`. Renaming
+an Xcode target is invasive and wide:
 
 - `claudeBlast.xcodeproj` (target, scheme, build settings, product name)
 - the module name → **every** `@testable import claudeBlast` in tests

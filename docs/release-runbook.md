@@ -109,6 +109,22 @@ The scripted equivalent, once written:
 Apple has moved that surface more than once, and per `feedback_tool_lifetime` a
 runbook that names a command should name one that currently works.
 
+### Check the exported entitlements, once
+
+`claudeBlast.entitlements` declares `aps-environment` as **development**. CloudKit drives
+sync with silent pushes, and a TestFlight build runs against the *production* APS
+environment — so if that value survives into the exported build rather than being replaced
+by the distribution profile, sync would be quiet in exactly the way that is hardest to
+diagnose: everything installs, nothing errors, changes simply do not arrive.
+
+Xcode normally substitutes it during an App Store export. Confirm rather than assume, on
+the first archive:
+
+    codesign -d --entitlements - build/export/claudeBlast.ipa
+
+`aps-environment` must read `production`. This cannot go in `preflight_release.py` — it is
+only observable after export.
+
 **The App Store Connect API key is a secret.** The `.p8` goes in
 `~/.appstoreconnect/private_keys/`, never in the repo — same discipline as the
 OpenAI keys, and for the same reason: a key in git history is a key you cannot

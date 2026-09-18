@@ -342,6 +342,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = BlasterAI;
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Face ID unlocks the caregiver Admin area on this device.";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Screenshots taken by TileScript are saved to your photo library so you can get at them.";
@@ -385,6 +386,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = BlasterAI;
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Face ID unlocks the caregiver Admin area on this device.";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Screenshots taken by TileScript are saved to your photo library so you can get at them.";
