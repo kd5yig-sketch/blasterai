@@ -3,9 +3,15 @@
 How a TestFlight build gets made. Written so the next one is a checklist rather
 than a memory, and so someone who is not Mark can produce one.
 
-**Status:** the preflight is automated. Bumping, archiving, exporting and
-uploading are still manual — see *Not yet scripted* at the end for what is
-planned and why it has not been written yet.
+**Status:** scripted end to end. `tools/preflight_release.py` checks, then
+`tools/release.py` bumps, archives, exports and (opt-in) uploads.
+
+    python3 tools/release.py --bump build            # bump, archive, export
+    python3 tools/release.py --bump build --upload   # …and send it
+
+Upload is opt-in on purpose: archive and export are repeatable, but a build
+number is spent permanently — App Store Connect will not take the same
+version+build pair twice, even for a build that was deleted.
 
 ---
 
@@ -90,24 +96,48 @@ because a Debug-only bump looks right in Xcode and ships the old number.
 
 ## 4. Archive, export, upload
 
-Currently manual, in Xcode: Product → Archive with the `claudeBlastRetail`
-scheme, then Distribute App → App Store Connect → Upload.
+    python3 tools/release.py --bump build --upload
 
-The scripted equivalent, once written:
+Export options live in `tools/ExportOptions-appstore.plist`, checked in so two
+archives a year apart export the same way. Upload is `xcrun altool --upload-app`,
+confirmed present on Xcode 26.3.
 
-    xcodebuild -scheme claudeBlastRetail -configuration Release \
-      -archivePath build/claudeBlast.xcarchive archive
+### What must exist outside this repo, first
 
-    xcodebuild -exportArchive -archivePath build/claudeBlast.xcarchive \
-      -exportOptionsPlist tools/ExportOptions-appstore.plist \
-      -exportPath build/export
+The archive needs nothing special — a machine that has run on a device can make
+one. **Export is where the console work first bites**, and its failure is
+opaque unless you know what it means:
 
-    xcrun altool --upload-app -f build/export/claudeBlast.ipa -t ios \
-      --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID"
+    error: exportArchive No profiles for 'app.blasterai.ios' were found
 
-**Confirm the upload tool against the installed Xcode before relying on this.**
-Apple has moved that surface more than once, and per `feedback_tool_lifetime` a
-runbook that names a command should name one that currently works.
+Two things, both in Apple's consoles:
+
+1. **An Apple _Distribution_ certificate.** `security find-identity -v -p
+   codesigning` on a machine that has only ever built to a device shows an
+   Apple *Development* certificate and nothing else. Xcode mints the
+   distribution one on a first Organizer distribution, or create it in the
+   portal.
+2. **The App Store Connect app record.** Xcode will not create an App Store
+   provisioning profile for an app App Store Connect has never heard of.
+
+`release.py` names both when export fails this way, and keeps the archive, so
+`--no-bump` re-exports once they exist rather than rebuilding.
+
+### Creating the app record
+
+App Store Connect → Apps → **+** → New App:
+
+| Field | Value |
+|---|---|
+| Platform | iOS |
+| Name | **BlasterAI** — must be unique across the store; you find out here |
+| Bundle ID | `app.blasterai.ios` |
+| Primary category | **Education** — decided 2026-08-09, never Kids |
+| SKU | anything stable, e.g. `blasterai-ios` |
+
+The Kids Category is deliberately not used: its parental-gate rule forbids
+leaving the app without a gate, which would break the in-flow "Get a key" link
+that BYOK onboarding depends on.
 
 ### Check the exported entitlements, once
 
@@ -160,14 +190,18 @@ These are in App Store Connect, in a browser, and they are part of the loop:
 
 ---
 
-## Not yet scripted, and why
+## What is proven, and what is not
 
-The preflight was written first because it is the part that pays before a build
-exists: it is independent of CloudKit, it catches problems now, and it encodes
-the Release break that had already happened.
+Written and exercised on 2026-09-18, the session that produces build 1 — the
+point being that every line runs the day it is written rather than sitting
+unverified.
 
-Bump, archive, export and upload are deliberately left for the session that
-produces build 1, so every line is exercised the day it is written rather than
-sitting unverified in git. The one step that genuinely cannot be tested before
-promotion is the upload, because a TestFlight build with no Production schema
-behind it is not a meaningful test of anything.
+- **Version bump** — verified against the real project file, including that it
+  touches only the app target's two configurations and leaves the test target's
+  own `MARKETING_VERSION` alone. That is the failure mode of doing it by hand:
+  four edits, one of which is the one that ships.
+- **Archive** — run for real. Succeeds.
+- **Export** — reached and failed on signing, which is the expected state before
+  the console work. Its error message was rewritten to say so.
+- **Upload** — not yet run. It is five lines and cannot be tested without
+  spending a build number against a real app record.
