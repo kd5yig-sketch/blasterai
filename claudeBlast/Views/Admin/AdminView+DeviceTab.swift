@@ -618,29 +618,80 @@ extension AdminView {
         }
 
         // The pre-promotion gate. See docs/cloudkit-schema-checklist.md.
+        //
+        // Two buttons, and the gap between them is the entire point.
+        //
+        // This used to be one button that wrote the probe rows and deleted them
+        // on the very next line, synchronously. CloudKit uploads
+        // asynchronously, so the rows were gone from the local store before
+        // anything reached the server and the record types never materialized —
+        // while the button reported success, because all eight *local* writes
+        // had succeeded. Confirmed 2026-09-17: the Development schema held
+        // exactly the five types that bootstrap and ordinary use create on their
+        // own, and none of the three only this probe writes.
+        //
+        // So Populate now leaves its rows in place, and Clean Up is a separate
+        // deliberate act — after a human has looked at the console and seen the
+        // types arrive. The rows are obviously labelled and harmless in the
+        // meantime.
         Section {
             Button {
                 let result = CloudKitSchemaExerciser.run(context: modelContext)
-                CloudKitSchemaExerciser.cleanUp(context: modelContext)
+                schemaProbePopulated = true
                 schemaProbeResult = result.isComplete
-                    ? "Wrote all \(result.written.count) record types. Give sync a minute, "
-                      + "then check CloudKit Development."
+                    ? "Wrote all \(result.written.count) record types, and left them in place."
                     : "Wrote \(result.written.count). FAILED: \(result.failed.joined(separator: ", "))"
             } label: {
-                Label("Populate CloudKit Schema", systemImage: "square.stack.3d.up")
+                Label(schemaProbePopulated ? "Populated" : "Populate CloudKit Schema",
+                      systemImage: schemaProbePopulated ? "checkmark.circle.fill" : "square.stack.3d.up")
             }
-            .disabled(!icloudEnabled)
+            .disabled(!icloudEnabled || schemaProbePopulated)
 
             if let schemaProbeResult {
                 Text(schemaProbeResult).font(.caption).foregroundStyle(.secondary)
             }
+
+            if schemaProbePopulated {
+                // Naming the types is the instruction. "Check the schema" sends
+                // someone to a list of eight and tells them nothing about what
+                // they are looking for; these are the ones whose presence
+                // actually proves the probe reached the server, because nothing
+                // else in ordinary use creates them.
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Now check CloudKit → Development → Record Types.")
+                        .font(.caption.weight(.semibold))
+                    Text("Sync takes a minute or two. All \(CloudKitSchemaExerciser.exercised.count) "
+                         + "must be present, and these three prove the probe worked — nothing "
+                         + "else creates them:")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    ForEach(CloudKitSchemaExerciser.probeOnly, id: \.self) { name in
+                        Text("CD_\(name)").font(.caption.monospaced())
+                    }
+                    Text("CD_MetricEvent and CD_DeviceProfile must NOT appear — they are "
+                         + "device-local by design. Only clean up once you have seen them.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.vertical, 2)
+
+                Button(role: .destructive) {
+                    CloudKitSchemaExerciser.cleanUp(context: modelContext)
+                    schemaProbePopulated = false
+                    schemaProbeResult = "Cleaned up. The schema survives — record types are "
+                        + "permanent once materialized."
+                } label: {
+                    Label("Clean Up Probe Rows", systemImage: "trash")
+                }
+            }
         } header: {
             Text("CloudKit Schema")
         } footer: {
-            Text("Writes and then modifies one row of every synced model, so CloudKit "
-                 + "materializes all eight record types, then deletes the rows. The schema "
-                 + "survives the cleanup. Run this on an iCloud-enabled device before "
-                 + "promotion — a record type nothing has written does not exist in "
+            Text("Writes and modifies one row of every synced model so CloudKit materializes "
+                 + "all \(CloudKitSchemaExerciser.exercised.count) record types. **Populate, "
+                 + "check the console, then clean up** — deleting the rows before they sync "
+                 + "means the types never exist. Run on an iCloud-enabled device before "
+                 + "promotion: a record type nothing has written does not exist in "
                  + "Development, and Production is read-only afterwards.")
         }
     }

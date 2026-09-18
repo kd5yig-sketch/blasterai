@@ -34,6 +34,28 @@ struct SchemaVersionTests {
         #expect(Set(CloudKitSchemaExerciser.exercised) == names(BlasterSchemaV1.syncedModels))
     }
 
+    /// `probeOnly` is what the Device tab tells a human to look for in the
+    /// CloudKit console, so a name that is not actually exercised would send
+    /// someone hunting for a type that was never going to appear.
+    @Test func probeOnlyTypesAreActuallyExercised() {
+        #expect(Set(CloudKitSchemaExerciser.probeOnly)
+                    .isSubset(of: Set(CloudKitSchemaExerciser.exercised)))
+    }
+
+    /// The three are the ones nothing else creates: bootstrap seeds tiles,
+    /// scenes and a profile, and one generated sentence produces a cache entry
+    /// and a logged utterance. If a future change makes one of these arrive on
+    /// its own, it stops being evidence the probe reached the server and this
+    /// list needs rethinking rather than quietly extending.
+    @Test func probeOnlyExcludesWhatOrdinaryUseCreates() {
+        let arrivesOnItsOwn = ["TileModel", "BlasterScene", "ChildProfile",
+                               "SentenceCache", "LoggedUtterance"]
+        for name in arrivesOnItsOwn {
+            #expect(!CloudKitSchemaExerciser.probeOnly.contains(name),
+                    "\(name) arrives without the probe, so its presence proves nothing")
+        }
+    }
+
     @Test func versionIdentifierIsV1() {
         #expect(BlasterSchemaV1.versionIdentifier == Schema.Version(1, 0, 0))
     }

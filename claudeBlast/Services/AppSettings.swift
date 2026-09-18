@@ -70,6 +70,12 @@ enum AppSettingsKey {
     static let giftedKeyIssued   = "gifted_key_issued"
     static let giftedKeyExpires  = "gifted_key_expires"
     static let giftedKeyLastFour = "gifted_key_last_four"
+
+    /// Whether the CloudKit schema probe has written its rows and not yet
+    /// cleaned them up. DEBUG only. Persisted rather than held in view state
+    /// because the wait between the two halves is a sync round trip and a
+    /// console check — minutes, and possibly a relaunch.
+    static let schemaProbePopulated = "schema_probe_populated"
     static let audioEnabled          = "audio_enabled"
     static let tileSpeechEnabled     = "tile_speech_enabled"
     static let speechVoiceIdentifier = "speech_voice_identifier"

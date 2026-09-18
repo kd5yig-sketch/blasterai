@@ -82,6 +82,10 @@ struct AdminView: View {
     #if DEBUG
     /// Outcome of the last CloudKit schema exercise — see CloudKitSchemaExerciser.
     @State var schemaProbeResult: String?
+    /// Whether the probe's rows are currently in the store awaiting a console
+    /// check. Persisted, because the wait between Populate and Clean Up is a
+    /// sync round trip and a look at CloudKit — minutes, possibly a relaunch.
+    @AppStorage(AppSettingsKey.schemaProbePopulated) var schemaProbePopulated = false
     #endif
     #endif
 
