@@ -56,10 +56,22 @@ DEBUG_ICONSET = Path("claudeBlast/Assets.xcassets/AppIcon.appiconset")
 
 SIZE = 1024
 # The frame is wide enough to read as a colour at home-screen size. iOS masks the
-# corners itself, so the canvas is a full-bleed square and only the inner plate
-# is rounded.
+# canvas itself, so this is a full-bleed square and only the inner plate is
+# drawn rounded.
 FRAME = 96
-PLATE_RADIUS = 96
+
+# iOS masks an app icon to a **superellipse**, not a rounded rectangle — the
+# corner curvature is continuous rather than a circular arc joined to a straight
+# edge. The first version of this icon drew the inner plate as a rounded
+# rectangle with an arbitrary 96px radius, against an outer edge whose effective
+# radius is about 229px at this size. The two corners could not nest, and on a
+# home screen the frame visibly pinched at each corner.
+#
+# Drawing the plate as the *same* superellipse, scaled down, makes it concentric
+# by construction: no radius arithmetic, and it stays right at any frame width.
+SQUIRCLE_N = 5.0
+# Supersample the mask, because a superellipse edge aliases badly at 1:1.
+SUPERSAMPLE = 4
 # Art inset inside the white plate, so the drawing is not flush to its edge.
 ART_PAD = 28
 
@@ -130,7 +142,10 @@ def badge(icon: Image.Image) -> None:
     d = ImageDraw.Draw(icon)
     # Inset well clear of the corner: iOS masks the icon to a rounded square
     # with a large radius, so anything sitting in the literal corner is cut.
-    cx = cy = SIZE - BADGE_R - FRAME
+    # Far enough in to clear the plate's rounded corner. Sitting flush against
+    # it let the disc overflow the curve, which reads as clipping rather than as
+    # a badge.
+    cx = cy = SIZE - FRAME - BADGE_R - 64
     d.ellipse([cx - BADGE_R, cy - BADGE_R, cx + BADGE_R, cy + BADGE_R],
               fill=(255, 255, 255), outline=DEBUG_FRAME, width=14)
     for path in ["/System/Library/Fonts/SFNSRounded.ttf",
@@ -143,39 +158,62 @@ def badge(icon: Image.Image) -> None:
     # No usable font: the disc alone still marks it.
 
 
+def squircle(size: int, n: float = SQUIRCLE_N) -> Image.Image:
+    """An `L` mask of Apple's icon shape: |x|^n + |y|^n = 1.
+
+    Scaled versions of this are concentric with each other and with the mask iOS
+    applies, which is the whole reason the plate is drawn this way rather than as
+    a rounded rectangle.
+    """
+    big = size * SUPERSAMPLE
+    mask = Image.new("L", (big, big), 0)
+    px = mask.load()
+    half = big / 2
+    for y in range(big):
+        v = abs((y + 0.5 - half) / half) ** n
+        if v > 1:
+            continue
+        # Solve for the x at which the boundary sits on this row, and fill in.
+        limit = (1 - v) ** (1 / n) * half
+        x0, x1 = int(half - limit), int(half + limit)
+        for x in range(max(0, x0), min(big, x1 + 1)):
+            px[x, y] = 255
+    return mask.resize((size, size), Image.LANCZOS)
+
+
 def compose(word: str, image_set: str, color: tuple[int, int, int],
-            workdir: Path, variant: str = "retail") -> Image.Image:
+            workdir: Path, variant: str = "retail",
+            frame: int = FRAME) -> Image.Image:
     icon = Image.new("RGB", (SIZE, SIZE), color)
 
-    plate = Image.new("L", (SIZE - 2 * FRAME, SIZE - 2 * FRAME), 0)
-    ImageDraw.Draw(plate).rounded_rectangle(
-        [0, 0, plate.size[0] - 1, plate.size[1] - 1], radius=PLATE_RADIUS, fill=255)
+    plate_size = SIZE - 2 * frame
+    plate = squircle(plate_size)
 
     art = Image.open(tile_png(word, image_set, workdir)).convert("RGB")
-    inner = plate.size[0] - 2 * ART_PAD
+    inner = plate_size - 2 * ART_PAD
     art = art.resize((inner, inner), Image.LANCZOS)
 
-    white = Image.new("RGB", plate.size, (255, 255, 255))
+    white = Image.new("RGB", (plate_size, plate_size), (255, 255, 255))
     white.paste(art, (ART_PAD, ART_PAD))
-    icon.paste(white, (FRAME, FRAME), plate)
+    icon.paste(white, (frame, frame), plate)
     if variant == "debug":
         badge(icon)
     return icon
 
 
 def build(word: str, image_set: str, out_dir: Path,
-          variant: str = "retail") -> Path:
+          variant: str = "retail", frame: int = FRAME) -> Path:
     pos = part_of_speech(word)
     colors = fitzgerald_colors()
     if pos not in colors:
         sys.exit(f"'{word}' is a {pos}, which fitzgerald() does not colour")
-    frame = DEBUG_FRAME if variant == "debug" else colors[pos]
+    frame_color = DEBUG_FRAME if variant == "debug" else colors[pos]
     with tempfile.TemporaryDirectory() as tmp:
-        icon = compose(word, image_set, frame, Path(tmp), variant)
+        icon = compose(word, image_set, frame_color, Path(tmp), variant, frame)
     out_dir.mkdir(parents=True, exist_ok=True)
-    path = out_dir / f"AppIcon-{word}-{variant}.png"
+    path = out_dir / f"AppIcon-{word}-{variant}{'' if frame else '-noframe'}.png"
     icon.save(path)
-    print(f"  {word:<8} {pos:<10} {variant:<7} rgb{frame}  →  {path}")
+    print(f"  {word:<8} {pos:<10} {variant:<7} frame={frame:<4} rgb{frame_color}  →  {path}")
     return path
 
 
@@ -191,6 +229,9 @@ def main() -> int:
                     help="where to write (default build/icons)")
     ap.add_argument("--variant", choices=["retail", "debug"], default="retail",
                     help="retail = Fitzgerald frame; debug = hot pink + DEV badge")
+    ap.add_argument("--frame", type=int, default=FRAME,
+                    help="frame width in px; 0 for a full-bleed card with no "
+                         "coloured border (default %(default)s)")
     ap.add_argument("--install", action="store_true",
                     help=f"also write {RETAIL_ICONSET}/AppIcon.png")
     args = ap.parse_args()
@@ -199,7 +240,7 @@ def main() -> int:
         ap.error("pass --word or --candidates")
 
     for word in (args.candidates or [args.word]):
-        path = build(word, args.image_set, args.out, args.variant)
+        path = build(word, args.image_set, args.out, args.variant, args.frame)
 
     if args.install:
         if args.candidates:
