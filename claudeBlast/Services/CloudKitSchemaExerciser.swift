@@ -42,7 +42,20 @@ import SwiftData
 /// whether the dedup reconciler behaves. `docs/cloudkit-promotion-runbook.md`
 /// still governs the ceremony.
 ///
-/// DEBUG only, and it writes obviously-labelled rows that `cleanUp` removes.
+/// ## Populate and clean up are two acts, deliberately
+///
+/// `run` leaves its rows in the store. They must stay there until CloudKit has
+/// actually uploaded them — a record type materializes when a record reaches the
+/// server, not when one is written locally.
+///
+/// The caller used to invoke `cleanUp` on the line after `run`, synchronously.
+/// Every local write succeeded, the button reported success, and the rows were
+/// deleted before sync could carry them anywhere. Confirmed on 2026-09-17: the
+/// Development schema held exactly the five types that bootstrap and ordinary
+/// use create on their own, and none of `probeOnly`.
+///
+/// DEBUG only, and it writes obviously-labelled rows that `cleanUp` removes —
+/// after a human has seen them arrive.
 #if DEBUG
 enum CloudKitSchemaExerciser {
 
@@ -65,6 +78,25 @@ enum CloudKitSchemaExerciser {
         "RecordedScript",
         "LoggedUtterance",
         "ChildProfile",
+        "ReceivedPack",
+    ]
+
+    /// The types nothing but this probe creates, in practice.
+    ///
+    /// Bootstrap gives `TileModel`, `BlasterScene` and `ChildProfile` on any
+    /// launch; generating one sentence gives `SentenceCache` and
+    /// `LoggedUtterance`. These three need deliberate, non-obvious caregiver
+    /// actions — generate art for a custom word, record a TileScript, import a
+    /// pack — which is why their absence is the signal that the probe did not
+    /// reach the server, and why checking "are all eight there" is less useful
+    /// than checking for these.
+    ///
+    /// That is exactly how the delete-immediately bug presented on 2026-09-17:
+    /// the Development schema held the five that arrive on their own, and none
+    /// of these.
+    static let probeOnly: [String] = [
+        "TileArtVariant",
+        "RecordedScript",
         "ReceivedPack",
     ]
 

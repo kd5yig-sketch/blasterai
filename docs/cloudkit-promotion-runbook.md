@@ -83,6 +83,29 @@ built once at startup.
 
 **2.3 — Exercise every synced record type. ⚠️ Do not skip this.**
 
+> **Use the two buttons, in order.** Admin → Device → CloudKit Schema:
+>
+> 1. **Populate CloudKit Schema** — writes and then modifies one row of every
+>    synced model, and **leaves the rows in place**. It disables itself and tells
+>    you what to look for.
+> 2. Wait a minute or two, then check the console (below). The three types listed
+>    on screen — `CD_TileArtVariant`, `CD_RecordedScript`, `CD_ReceivedPack` —
+>    are the proof: nothing but the probe creates them, so if they are missing,
+>    the probe did not reach the server.
+> 3. **Clean Up Probe Rows** — only after you have seen them. The record types
+>    are permanent once materialized; the rows are not needed.
+>
+> The gap between the two is the whole point. Until 2026-09-17 this was one
+> button that deleted the rows on the line after writing them, synchronously.
+> CloudKit uploads asynchronously, so the rows were gone before anything reached
+> the server — and the button reported success, because every *local* write had
+> succeeded. The symptom was a Development schema holding exactly the five types
+> that bootstrap and ordinary use create anyway.
+>
+> The manual table below still works and is the fallback if the buttons are
+> unavailable (a RELEASE build has neither).
+
+
 A record type only exists in the schema once a record of that type has actually been
 saved. Anything you don't exercise here won't be in the schema you promote — and in
 **Production the schema is read-only**, so the app cannot create the missing type later.
