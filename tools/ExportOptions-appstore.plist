@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Checked in rather than passed as flags, so two archives a year apart
+	     export the same way. `app-store-connect` is the Xcode 15+ spelling of
+	     what used to be `app-store`. -->
+	<key>method</key>
+	<string>app-store-connect</string>
+	<key>teamID</key>
+	<string>7JZT5T9J25</string>
+	<key>signingStyle</key>
+	<string>automatic</string>
+	<!-- Symbols go up with the build, so a crash report from a tester's device
+	     is readable rather than a column of hex. -->
+	<key>uploadSymbols</key>
+	<true/>
+	<!-- Export to disk; the upload is a separate, deliberate step. A combined
+	     archive-and-upload has no moment to inspect what is about to be sent,
+	     and a build number cannot be spent twice. -->
+	<key>destination</key>
+	<string>export</string>
+</dict>
+</plist>
