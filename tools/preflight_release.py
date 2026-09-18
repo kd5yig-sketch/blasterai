@@ -191,6 +191,27 @@ def check_private_cloudkit_only() -> str:
     return "CloudKit is private-database only"
 
 
+def check_release_icon() -> str:
+    """The shipping build must not wear the development icon.
+
+    Debug and Release point at different icon sets so a home screen with both
+    installed says which is which — hot pink and a DEV badge versus the
+    Fitzgerald green card. The check exists because that is a build setting, and
+    a build setting that silently reverts costs an App Store round trip to
+    notice.
+    """
+    body = PBXPROJ.read_text()
+    names = re.findall(r"ASSETCATALOG_COMPILER_APPICON_NAME = (\w+);", body)
+    if "AppIconRetail" not in names:
+        raise Failure("no configuration uses AppIconRetail — the Release build "
+                      "would ship the development icon")
+    iconset = Path("claudeBlast/Assets.xcassets/AppIconRetail.appiconset/AppIcon.png")
+    if not iconset.exists():
+        raise Failure(f"{iconset} is missing — regenerate with "
+                      "`python3 tools/make_app_icon.py --word speak --install`")
+    return "Release uses AppIconRetail"
+
+
 def check_privacy() -> str:
     manifest = list(Path(".").rglob("PrivacyInfo.xcprivacy"))
     if not manifest:
@@ -231,6 +252,7 @@ def main() -> int:
         ("gates 8 & 9", check_gates),
         ("privacy & compliance", check_privacy),
         ("cloudkit scope", check_private_cloudkit_only),
+        ("release icon", check_release_icon),
         ("audits", check_sibling_audits),
         ("Debug build", lambda: check_builds("Debug")),
         ("Release build", lambda: check_builds("Release")),
