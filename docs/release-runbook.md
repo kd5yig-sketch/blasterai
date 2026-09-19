@@ -123,6 +123,28 @@ Two things, both in Apple's consoles:
 `release.py` names both when export fails this way, and keeps the archive, so
 `--no-bump` re-exports once they exist rather than rebuilding.
 
+### Never choose "TestFlight Internal Only"
+
+Xcode's Distribute dialog offers it and it looks like the modest choice for a
+first build. **It is a dead end.** A build uploaded that way reaches internal
+testers and can never be given to external ones or submitted — there is no
+promote path, and the only fix is to upload again as **App Store Connect**.
+
+Found on 2026-09-18: build 2 went up internal-only, and re-uploading the same
+archive as App Store Connect produced **0.9.0 (3)**, because App Store Connect
+had already spent build number 2. The project file had to be hand-corrected to 3
+so the next `--bump build` lands on 4.
+
+`tools/ExportOptions-appstore.plist` specifies `app-store-connect`, so
+`release.py` cannot make this mistake. Only the manual bootstrap below offers the
+choice, and the answer is always **App Store Connect** — it covers internal
+testing too.
+
+**If App Store Connect and the project file ever disagree about the build
+number**, App Store Connect wins: it will not accept a number it has already
+seen, whatever the reason. Edit `CURRENT_PROJECT_VERSION` on the app target's two
+configurations to match, and commit it.
+
 ### The first distribution must be manual, once per machine
 
 This is a genuine bootstrap, not a gap in the script. `xcodebuild -exportArchive`
