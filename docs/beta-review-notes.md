@@ -1,24 +1,63 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-# Beta review notes & tester instructions
+# TestFlight & App Review copy
 
-Two audiences, two App Store Connect fields, written differently.
+Every text field App Store Connect asks for, in the order the form asks for it,
+plus the invite email that goes out of band.
 
-- **Beta App Review Information** — Apple's reviewer. Required before *external*
-  testing. Internal testers need none of it.
-- **What to Test** — the testers, attached to each build.
+**Four audiences, and the tone differs.** Apple's reviewers get an honest,
+superficial walk and are asked nothing. Testers get a walk *and* questions. The
+invite email carries the one thing that belongs to a relationship rather than a
+test.
 
-Paste the sections below into those fields. Keep this file as the source, so the
-next build's notes are an edit rather than a rewrite.
+| Where | Field | Read by |
+|---|---|---|
+| TestFlight → Test Information | **Beta App Description** | testers, in the TestFlight app |
+| TestFlight → Test Information | **Review Notes** | Apple's beta reviewer |
+| TestFlight → the build | **What to Test** | testers, per build |
+| Distribution → App Review Information | **Notes** | Apple's App Store reviewer |
+| Your mail client | **Invite email** | Brandi and the SLPs |
+
+`python3 tools/make_tester_notes.py` extracts the plain text for each and builds
+the tester PDF. Both ASC boxes cap at 4,000 characters and truncate silently, so
+it checks.
 
 ---
 
-## 1. Beta App Review Information
+## 0. Beta App Information
 
-**Sign-in required:** No. The app has no accounts and no backend.
+**Feedback Email:** support@blasterai.app
+**Marketing URL:** https://blasterai.app
+**Privacy Policy URL:** https://blasterai.app/privacy
 
+### Beta App Description
+
+> BlasterAI is an AAC app — augmentative and alternative communication — for
+> non-verbal children. A child touches picture tiles and the app speaks for them.
+>
+> It arrives with a full vocabulary and working boards, and every board can be
+> rebuilt: add words, hide them, rearrange pages, print the board on paper.
+>
+> Optionally, it can turn a selection of tiles into a whole spoken sentence. That
+> part uses your own OpenAI key and is off until you add one — without it the app
+> speaks each word as it is tapped, the way a conventional AAC device does.
+>
+> No account and no server. Everything stays on your device and in your own
+> iCloud.
+
+---
+
+## 1. Review Notes — for Apple
+
+Paste into **both**:
+
+- TestFlight → Test Information → Beta App Review Information → **Review Notes**
+- Distribution → App Review Information → **Notes**
+
+**Sign-in required: leave unchecked.** There are no accounts.
 **Contact:** Mark Lucovsky · support@blasterai.app
 
-### Review notes
+Apple is asked nothing here. An honest, superficial walk, and the facts a
+reviewer needs so a keyless app does not read as a broken one.
 
 > BlasterAI is an AAC (augmentative and alternative communication) app for
 > non-verbal children. A child touches picture tiles; the app speaks for them.
@@ -72,7 +111,7 @@ next build's notes are an edit rather than a rewrite.
 
 ---
 
-## 2. What to Test
+## 2. What to Test — for testers, per build
 
 > Thanks for looking at this. About half an hour, and you can stop anywhere.
 >
@@ -119,13 +158,11 @@ next build's notes are an edit rather than a rewrite.
 >    layout and paper size. Plenty of classrooms still run on paper, and a board
 >    that cannot be printed is only half a board.
 
-> 8. Same Share sheet, two other destinations worth a look:
->    - **Tile images** — the pictures as ordinary image files, for a worksheet, a
->      label maker, or anything that is not this app.
+> 8. Same Share sheet, two more destinations:
+>    - **Tile images** — the pictures as image files, for a worksheet or a label.
 >    - **Blaster scene** — the board as a file. Text or email it to another
->      device with BlasterAI on it and tapping it there rebuilds the board,
->      artwork included. That is how a therapist hands a board to a family, with
->      no account and nothing in between.
+>      device running BlasterAI and tapping it rebuilds the board, artwork
+>      included. That is how a therapist hands a board to a family.
 >
 > ### Looking at how it is used
 >
@@ -160,12 +197,46 @@ next build's notes are an edit rather than a rewrite.
 >
 > ### What we most want to hear
 >
+> - **The starting board is our first attempt, not a recommendation.** Where is
+>   it wrong?
 > - Did anything feel broken, slow or confusing **before** you added a key?
 > - Is the child-facing screen calm enough to hand to a child?
 > - Did anything in Admin look like it needs a manual?
 > - What did you expect to find and could not?
 >
 > TestFlight feedback, or support@blasterai.app.
+
+---
+
+## 3. Invite email — out of band, from Mark
+
+Not in App Store Connect. This is the covering note that goes with the
+invitation, and it carries the one thing that belongs to a relationship rather
+than to a test.
+
+> Hi —
+>
+> Thanks for agreeing to look at this. TestFlight will send you an invitation;
+> installing takes a minute and there is nothing to sign up for.
+>
+> I have attached a short walkthrough. It should take about half an hour and you
+> can stop anywhere. Most of it works without any setup — please do the first
+> part without adding an AI key, because that is how most families will run it.
+>
+> One last thing, and it is the part I most want your help with. **The default
+> board is a placeholder.** Claude and I put it together by looking at existing
+> boards and at roughly what is on my granddaughter's device. It is a first stab
+> in what I hope is the right direction, and I do not want anyone to mistake it
+> for the app — the app is the thing that lets you rebuild it.
+>
+> What I would really like is two or three SLPs working with us on what the
+> default *should* be. If that is interesting to you, it is real design work and
+> I would want to credit it as such: the board carrying the names of the
+> clinicians who shaped it, not mine.
+>
+> Either way, tell me where the current one is wrong.
+>
+> Mark
 
 ---
 
