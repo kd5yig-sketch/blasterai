@@ -219,10 +219,15 @@ def main() -> int:
         sys.exit(f"missing {SOURCE} — run from the repo root")
     doc = SOURCE.read_text()
 
+    # One entry per App Store Connect text box, keyed by the file it becomes.
+    # `beta-app-description` is shown to testers in the TestFlight app and is a
+    # different thing from `what-to-test`, which is attached to each build — a
+    # distinction the form makes and it is easy to miss.
     sections = {
-        "beta-review-notes": extract(doc, "## 1. Beta App Review Information",
-                                     "## 2. What to Test"),
-        "what-to-test": extract(doc, "## 2. What to Test", "## Notes for us"),
+        "beta-app-description": extract(doc, "### Beta App Description",
+                                        "## 1. Review Notes"),
+        "review-notes": extract(doc, "## 1. Review Notes", "## 2. What to Test"),
+        "what-to-test": extract(doc, "## 2. What to Test", "## 3. Invite email"),
     }
 
     over = False
