@@ -32,7 +32,22 @@ they tap.
    key passed as an argument lands in shell history where it outlives the
    evaluator.
 
-5. **Text the file.** Nothing else travels with it — there is no passcode.
+5. **Send the file.** Nothing else travels with it — there is no passcode.
+
+   **Text is the short path**: the attachment opens straight into BlasterAI.
+
+   **By email it depends on the client, not on the account.** Both verified
+   2026-09-19 on iPad, both against Gmail accounts:
+
+   - **Apple Mail** honours the file-type association. Tapping the attachment
+     opens BlasterAI directly — nothing else to do.
+   - **The Gmail app** does not. It neither strips nor previews the file; it
+     *downloads* it and stops there. The recipient then opens **Files →
+     Downloads** and taps it, and that is what hands it to the app.
+
+   The covering note has to describe both, because you cannot know which client
+   is on the recipient's iPad, and someone in Gmail waiting for the mail app to
+   do something will conclude the file is broken.
 
 ## Revoking
 
@@ -69,9 +84,17 @@ survives — it is the blast radius that is pooled.
 | Situation | What they see |
 |---|---|
 | Key installed | Admin → Device shows "Gifted key — Brandi · sk-…8toA" |
+| A key is already on the device | Refused before installing, with *"This device already has a key"* and the route to swap it — **Admin → Device → Remove API Key** |
 | Key revoked | "OpenAI refused this key", device speaks each word as tapped |
 | Project out of credit | "This key is out of credit", same fallback, plus *close and reopen once the limit is raised* |
 | A model not allowed | Art generation says so by name; sentences and moderation unaffected |
+
+The refusal is a design decision, not a failure, and it is checked when the file
+loads rather than at Install so nobody agrees to something that was never going
+to happen: the Keychain holds exactly one key, so installing over a caregiver's
+own would silently redirect their spending to our account and leave the old key
+unrecoverable. See `GiftedKeyImportSheet.swift`. An evaluator following the
+tester walk skips the key step at onboarding and never meets it.
 
 The quota state does not clear on its own — the flag is in memory and nothing on
 the device can observe a limit being raised at OpenAI. Authoring surfaces recover

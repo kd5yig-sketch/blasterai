@@ -219,9 +219,20 @@ than to a test.
 > Thanks for agreeing to look at this. TestFlight will send you an invitation;
 > installing takes a minute and there is nothing to sign up for.
 >
-> I have attached a short walkthrough. It should take about half an hour and you
-> can stop anywhere. Most of it works without any setup — please do the first
-> part without adding an AI key, because that is how most families will run it.
+> I have attached two things.
+>
+> **A short walkthrough.** About half an hour, and you can stop anywhere. Most
+> of it works without any setup — please do the first part without adding an AI
+> key, because that is how most families will run it.
+>
+> **A key file** (`.blasterkey`), which turns on the AI features at the end. It
+> runs on my account, so there is nothing to pay for and no card to put down.
+> Tap it and it should open straight into BlasterAI, which shows you what is in
+> it and asks before installing. If you read mail in the Gmail app rather than
+> Apple's Mail, it will download the file instead of opening it — in that case
+> go to **Files → Downloads** and tap it there. If you have already added an
+> OpenAI key of your own, it will decline rather than overwrite it, and tell you
+> how to swap them.
 >
 > One last thing, and it is the part I most want your help with. **The default
 > board is a placeholder.** Claude and I put it together by looking at existing
