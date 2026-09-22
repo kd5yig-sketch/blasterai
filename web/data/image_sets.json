@@ -1,0 +1,7 @@
+[
+  { "id": "classic", "displayName": "Classic — Light", "shortName": "Light", "prefix": "cls", "summary": "Flat pictograms, like most school boards and other AAC apps." },
+  { "id": "classic_medium", "displayName": "Classic — Medium", "shortName": "Medium", "prefix": "clsm", "summary": "The same pictograms with a medium skin tone." },
+  { "id": "classic_medium_dark", "displayName": "Classic — Dark", "shortName": "Dark", "prefix": "clsmd", "summary": "The same pictograms with a darker skin tone." },
+  { "id": "playful_3d", "displayName": "Playful 3D", "shortName": "Playful 3D", "prefix": "p3d", "summary": "Soft 3D characters — warmer, less like traditional symbols." },
+  { "id": "high_contrast", "displayName": "High Contrast", "shortName": "Contrast", "prefix": "hc", "summary": "Bold white on black, for low vision and CVI." }
+]

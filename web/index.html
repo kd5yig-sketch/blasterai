@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Blaster</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div id="app">
+    <header id="tray-bar">
+      <div id="tray" aria-live="polite"></div>
+      <div id="sentence-text" aria-live="polite"></div>
+      <div id="tray-controls">
+        <button id="replay-btn" type="button" title="Replay">🔊</button>
+        <button id="clear-btn" type="button" title="Clear">✕</button>
+        <button id="settings-btn" type="button" title="Settings">⚙</button>
+      </div>
+    </header>
+
+    <main id="grid" role="grid"></main>
+
+    <dialog id="settings-dialog">
+      <form id="settings-form" method="dialog">
+        <h2>Settings</h2>
+
+        <label>
+          Mode
+          <select id="mode-select">
+            <option value="single-word">Single Word (no AI, no key needed)</option>
+            <option value="sentence">AI Sentences</option>
+          </select>
+        </label>
+
+        <label>
+          Image set
+          <select id="imageset-select"></select>
+        </label>
+
+        <label>
+          Sentence provider
+          <select id="provider-select">
+            <option value="mock">Mock (offline placeholder)</option>
+            <option value="openai">OpenAI</option>
+          </select>
+        </label>
+
+        <label>
+          OpenAI API key
+          <input id="apikey-input" type="password" autocomplete="off" placeholder="sk-..." />
+        </label>
+
+        <label>
+          Voice
+          <select id="voice-select"></select>
+        </label>
+
+        <label>
+          Max tiles per sentence
+          <input id="maxtiles-input" type="number" min="1" max="8" />
+        </label>
+
+        <div id="settings-error"></div>
+
+        <menu>
+          <button id="settings-cancel" type="button">Cancel</button>
+          <button id="settings-save" type="submit">Save</button>
+        </menu>
+      </form>
+    </dialog>
+  </div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
