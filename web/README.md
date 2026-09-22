@@ -59,6 +59,7 @@ directly to filenames.
 | Sentence engine (debounce, staleness guard, escalation counting) | `Engine/SentenceEngine.swift` | `js/sentenceEngine.js` |
 | Word→color (Modified Fitzgerald Key) | `Services/VocabularyClasses.swift` (`TileColorResolver`) | `js/color.js`, `data/vocabulary_classes.json` |
 | Tile key normalization, art-alias resolution | `Models/TileModel.swift` | `js/model.js` |
+| OBF/OBZ export | `Services/OBFExporter.swift`, `Models/OBFModels.swift` | `js/obfExport.js`, `js/zip.js` |
 
 ## What's genuinely different from the iOS app
 
@@ -79,6 +80,23 @@ directly to filenames.
 - **Secrets**: an OpenAI key typed into Settings lives in `localStorage`,
   same trust model as the iOS app's `UserDefaults` storage (dev-appropriate,
   not Keychain-grade).
+
+## OBF / OBZ export
+
+Settings → **Export board (.obz)** exports the whole scene as an
+[Open Board Format](https://www.openboardformat.org) package — importable
+into Cboard, CoughDrop, and other AAC apps — following
+[`../docs/obf-interop.md`](../docs/obf-interop.md) exactly: qualified board
+IDs, home-board-first manifest/archive ordering, a synthetic Home button
+injected at cell 0 of every non-home board (OBF has no chrome), WebP→PNG
+art conversion, and the same grid-shape formula as the Swift exporter.
+Implemented in `js/obfExport.js`, with a dependency-free STORE-mode ZIP
+writer in `js/zip.js` (no JSZip, no CDN). Verified by round-tripping an
+export back through a ZIP parser in-browser: 511 entries (13 boards + 497
+images + manifest), correct root/grid/colors/navigation.
+
+There is no OBF **import** yet — same as upstream (`docs/obf-interop.md`:
+"Export only... post-pilot work").
 
 ## Known gaps (not yet ported)
 

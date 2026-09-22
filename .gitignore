@@ -114,3 +114,6 @@ tools/tile_sets/tone_cutsheet/
 # regenerable from tools/test_tone_exemplar.py.
 tools/tile_sets/exemplar_*/
 tools/tile_sets/new_words/
+
+# web/ — the Linux port. OBZ exports are a user action's output, not source.
+*.obz

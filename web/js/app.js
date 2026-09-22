@@ -5,6 +5,7 @@ import { SentenceEngine } from "./sentenceEngine.js";
 import { speak, availableVoices } from "./speech.js";
 import { loadSettings, saveSettings } from "./store.js";
 import { colorForWordClass, labelColorOn } from "./color.js";
+import { exportSceneAsOBZ, downloadBlob } from "./obfExport.js";
 
 const STRIP_MAX = 12;
 
@@ -158,6 +159,31 @@ async function main() {
 
   document.getElementById("settings-btn").addEventListener("click", openSettings);
   document.getElementById("settings-cancel").addEventListener("click", () => dialog.close());
+
+  const exportBtn = document.getElementById("export-obz-btn");
+  exportBtn.addEventListener("click", async () => {
+    exportBtn.disabled = true;
+    const originalLabel = exportBtn.textContent;
+    try {
+      const blob = await exportSceneAsOBZ({
+        sceneJson,
+        scene,
+        vocabByKey,
+        vocabularyClasses,
+        imagePrefix: imageSetPrefix(),
+        onProgress: (done, total) => {
+          exportBtn.textContent = total ? `Exporting… ${done}/${total}` : "Exporting…";
+        },
+      });
+      downloadBlob(blob, `${sceneJson.key || "blaster"}.obz`);
+      errorEl.textContent = "";
+    } catch (err) {
+      errorEl.textContent = `Export failed: ${err.message}`;
+    } finally {
+      exportBtn.disabled = false;
+      exportBtn.textContent = originalLabel;
+    }
+  });
 
   document.getElementById("settings-form").addEventListener("submit", (e) => {
     e.preventDefault();

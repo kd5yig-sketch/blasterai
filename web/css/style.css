@@ -156,6 +156,8 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.5); }
   cursor: pointer;
 }
 #settings-save { background: #0a84ff; color: #fff; }
+#export-obz-btn { background: #34c759; color: #fff; }
+#export-obz-btn:disabled { background: #8e8e93; cursor: default; }
 #settings-error { color: #d70015; font-size: 13px; min-height: 1em; }
 
 @media (max-width: 480px) {
