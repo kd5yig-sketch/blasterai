@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# Launches Blaster full-screen in Chrome, as a kiosk app. Waits for the
+# blaster-web systemd unit to start answering before opening the window, so
+# a slow boot doesn't show Chrome's "can't reach this page" for a moment.
+set -euo pipefail
+
+URL="http://127.0.0.1:8080/index.html"
+PROFILE_DIR="$HOME/.local/share/blaster-kiosk-profile"
+
+for _ in $(seq 1 100); do
+  if curl -fs -o /dev/null "$URL"; then
+    break
+  fi
+  sleep 0.2
+done
+
+mkdir -p "$PROFILE_DIR"
+
+exec google-chrome \
+  --kiosk \
+  --app="$URL" \
+  --user-data-dir="$PROFILE_DIR" \
+  --noerrdialogs \
+  --disable-infobars \
+  --disable-session-crashed-bubble \
+  --disable-translate \
+  --disable-pinch \
+  --overscroll-history-navigation=0 \
+  --no-first-run

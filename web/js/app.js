@@ -2,7 +2,7 @@ import { buildVocabulary } from "./model.js";
 import { materializeScene } from "./sceneImporter.js";
 import { TileGrid } from "./grid.js";
 import { SentenceEngine } from "./sentenceEngine.js";
-import { speak, availableVoices } from "./speech.js";
+import { speak, availableVoices, onSpeechWarning } from "./speech.js";
 import { loadSettings, saveSettings } from "./store.js";
 import { colorForWordClass, labelColorOn } from "./color.js";
 import { exportSceneAsOBZ, downloadBlob } from "./obfExport.js";
@@ -28,6 +28,16 @@ async function main() {
   const vocabByKey = buildVocabulary(vocabularyJson);
   const scene = materializeScene(sceneJson, vocabByKey);
   const settings = loadSettings();
+
+  const warningEl = document.getElementById("speech-warning");
+  const warningTextEl = document.getElementById("speech-warning-text");
+  onSpeechWarning((message) => {
+    warningTextEl.textContent = message;
+    warningEl.hidden = false;
+  });
+  document.getElementById("speech-warning-dismiss").addEventListener("click", () => {
+    warningEl.hidden = true;
+  });
 
   const gridEl = document.getElementById("grid");
   const trayEl = document.getElementById("tray");

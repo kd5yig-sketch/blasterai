@@ -68,6 +68,16 @@ directly to filenames.
   speech-dispatcher/espeak-ng via the browser, so voice quality depends on
   what the distro ships — steer users toward the best installed voice, same
   advice as upstream.
+
+  **Browser choice matters more than expected.** Verified 2026-09-22: Google
+  Chrome speaks correctly on this machine (via speech-dispatcher/espeak-ng);
+  Brave on the same machine implements the Web Speech API but
+  `speechSynthesis.getVoices()` returns an empty array forever — no voice,
+  no error, a tap just makes no sound. That failure is indistinguishable
+  from a real bug without checking the voice list, so `js/speech.js` now
+  detects zero voices (and any `utterance.onerror`) and surfaces a
+  dismissible on-screen banner rather than failing silently. If a caregiver
+  reports "no sound, volume's up," check the browser before anything else.
 - **Persistence**: SwiftData/CloudKit → `localStorage` (settings + sentence
   cache only, single device, no sync) — deliberately the simplest option
   upstream recommends for "a Linux laptop that lives on one desk"

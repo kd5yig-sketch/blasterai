@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Blaster AAC
+Comment=Launches Blaster full-screen at login
+Exec=__LAUNCH_SCRIPT__
+X-GNOME-Autostart-enabled=true
+NoDisplay=true
+Terminal=false

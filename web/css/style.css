@@ -15,6 +15,27 @@ html, body {
   height: 100vh;
 }
 
+#speech-warning {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 14px;
+  background: #d70015;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+}
+#speech-warning[hidden] { display: none; }
+#speech-warning-dismiss {
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 16px;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+
 #tray-bar {
   display: flex;
   align-items: center;

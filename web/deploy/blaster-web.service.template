@@ -1,0 +1,11 @@
+[Unit]
+Description=Blaster AAC web server (static file server for the Linux port)
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/python3 -m http.server 8080 --bind 127.0.0.1 --directory "__WEB_DIR__"
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=default.target
